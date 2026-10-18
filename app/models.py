@@ -27,3 +27,10 @@ class VaccineCreate(VaccineBase):
 class VaccineRecord(VaccineBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     profile_id: int = Field(foreign_key="profile.id")
+
+
+class VaccineReminder(SQLModel):
+    vaccine_name: str
+    next_due: date
+    days_left: int
+    status: str
