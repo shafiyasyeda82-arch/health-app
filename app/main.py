@@ -2,7 +2,10 @@ from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, col, select
 
 from app.database import create_db_and_tables, get_session
@@ -16,11 +19,41 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 
-@app.get("/")
-def home():
-    return {"message": "Health app is running"}
+# ---------- Web pages ----------
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def home_page(request: Request, session: Session = Depends(get_session)):
+    profiles = session.exec(select(Profile)).all()
+    return templates.TemplateResponse(request, "index.html", {"profiles": profiles})
+
+
+@app.post("/profiles/new", include_in_schema=False)
+def create_profile_form(
+    name: str = Form(...),
+    age: int = Form(...),
+    gender: str = Form(...),
+    blood_group: str = Form(""),
+    allergies: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    profile = Profile(
+        name=name,
+        age=age,
+        gender=gender,
+        blood_group=blood_group or None,
+        allergies=allergies or None,
+    )
+    session.add(profile)
+    session.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+
+# ---------- API routes ----------
 
 
 @app.post("/profiles", response_model=Profile)
