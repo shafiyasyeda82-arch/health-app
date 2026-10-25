@@ -9,6 +9,17 @@
 <body>
   <header>
     <h1>Health App</h1>
+    <nav>
+      {% if user %}
+        <span>{{ user.email }}</span>
+        <form action="/logout" method="post" class="inline-form">
+          <button type="submit" class="link-button">Log out</button>
+        </form>
+      {% else %}
+        <a href="/login">Log in</a>
+        <a href="/signup">Sign up</a>
+      {% endif %}
+    </nav>
   </header>
 
   <main>

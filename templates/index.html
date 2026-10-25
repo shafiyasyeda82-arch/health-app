@@ -1,40 +1,48 @@
 {% extends "base.html" %}
 
-{% block title %}Profiles - Health App{% endblock %}
+{% block title %}Home - Health App{% endblock %}
 
 {% block content %}
-  <section class="card">
-    <h2>Profiles</h2>
-    {% if profiles %}
-      <ul>
-        {% for p in profiles %}
-          <li>{{ p.name }} (age {{ p.age }})</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>No profiles yet. Add the first one below.</p>
-    {% endif %}
-  </section>
+  {% if user %}
+    <section class="card">
+      <h2>Your profiles</h2>
+      {% if profiles %}
+        <ul>
+          {% for p in profiles %}
+            <li>{{ p.name }} (age {{ p.age }})</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No profiles yet. Add the first one below.</p>
+      {% endif %}
+    </section>
 
-  <section class="card">
-    <h2>Add a profile</h2>
-    <form action="/profiles/new" method="post">
-      <label>Name
-        <input type="text" name="name" required>
-      </label>
-      <label>Age
-        <input type="number" name="age" min="0" required>
-      </label>
-      <label>Gender
-        <input type="text" name="gender" required>
-      </label>
-      <label>Blood group (optional)
-        <input type="text" name="blood_group">
-      </label>
-      <label>Allergies (optional)
-        <input type="text" name="allergies">
-      </label>
-      <button type="submit">Save profile</button>
-    </form>
-  </section>
+    <section class="card">
+      <h2>Add a profile</h2>
+      <form action="/profiles/new" method="post">
+        <label>Name
+          <input type="text" name="name" required>
+        </label>
+        <label>Age
+          <input type="number" name="age" min="0" required>
+        </label>
+        <label>Gender
+          <input type="text" name="gender" required>
+        </label>
+        <label>Blood group (optional)
+          <input type="text" name="blood_group">
+        </label>
+        <label>Allergies (optional)
+          <input type="text" name="allergies">
+        </label>
+        <button type="submit">Save profile</button>
+      </form>
+    </section>
+  {% else %}
+    <section class="card">
+      <h2>Welcome</h2>
+      <p>Keep health records and vaccine reminders for you and your family in one private place.</p>
+      <p><a href="/signup">Create an account</a> or <a href="/login">log in</a> to begin.</p>
+    </section>
+  {% endif %}
 {% endblock %}

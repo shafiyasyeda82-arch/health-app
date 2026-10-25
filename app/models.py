@@ -4,13 +4,27 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 
-class Profile(SQLModel, table=True):
+class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)
+    password_hash: str
+
+
+class ProfileBase(SQLModel):
     name: str
     age: int
     gender: str
     blood_group: Optional[str] = None
     allergies: Optional[str] = None
+
+
+class ProfileCreate(ProfileBase):
+    pass
+
+
+class Profile(ProfileBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
 
 
 class VaccineBase(SQLModel):

@@ -9,11 +9,42 @@ header {
   background: #1b7f79;
   color: white;
   padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 header h1 {
   margin: 0;
   font-size: 1.5rem;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.9rem;
+}
+
+nav a {
+  color: white;
+}
+
+.inline-form {
+  display: inline;
+  margin: 0;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: white;
+  text-decoration: underline;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.9rem;
 }
 
 main {
@@ -28,6 +59,13 @@ main {
   padding: 16px 20px;
   margin-bottom: 20px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.error {
+  background: #fdecea;
+  color: #b3261e;
+  padding: 10px 12px;
+  border-radius: 6px;
 }
 
 form label {

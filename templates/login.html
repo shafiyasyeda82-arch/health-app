@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Log in - Health App{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Log in</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/login" method="post">
+      <label>Email
+        <input type="email" name="email" value="{{ email or '' }}" required>
+      </label>
+      <label>Password
+        <input type="password" name="password" required>
+      </label>
+      <button type="submit">Log in</button>
+    </form>
+    <p>New here? <a href="/signup">Create an account</a></p>
+  </section>
+{% endblock %}
