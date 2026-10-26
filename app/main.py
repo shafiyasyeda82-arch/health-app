@@ -61,6 +61,15 @@ def tidy_name(name: str) -> str:
     )
 
 
+def match_option(value: Optional[str], options: List[str]) -> str:
+    """Return the option that matches value (ignoring capitals), or '' if none does."""
+    wanted = (value or "").strip().lower()
+    for option in options:
+        if option.lower() == wanted:
+            return option
+    return ""
+
+
 def get_current_user_or_none(
     request: Request, session: Session = Depends(get_session)
 ) -> Optional[User]:
@@ -174,6 +183,37 @@ def render_profile_page(
             "cycle_info": cycle_info,
             "error": error,
             "cycle_error": cycle_error,
+        },
+        status_code=status_code,
+    )
+
+
+def render_edit_page(
+    request: Request,
+    user: User,
+    profile: Profile,
+    values: Optional[dict] = None,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    if values is None:
+        values = {
+            "name": profile.name,
+            "age": profile.age,
+            "gender": match_option(profile.gender, GENDER_OPTIONS),
+            "blood_group": match_option(profile.blood_group, BLOOD_GROUP_OPTIONS),
+            "allergies": profile.allergies or "",
+        }
+    return templates.TemplateResponse(
+        request,
+        "edit_profile.html",
+        {
+            "user": user,
+            "profile": profile,
+            "values": values,
+            "gender_options": GENDER_OPTIONS,
+            "blood_group_options": BLOOD_GROUP_OPTIONS,
+            "error": error,
         },
         status_code=status_code,
     )
@@ -333,6 +373,69 @@ def profile_page(
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
     return render_profile_page(request, session, user, profile)
+
+
+@app.get("/p/{profile_id}/edit", response_class=HTMLResponse, include_in_schema=False)
+def edit_profile_page(
+    profile_id: int,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    return render_edit_page(request, user, profile)
+
+
+@app.post("/p/{profile_id}/edit", include_in_schema=False)
+def edit_profile_form(
+    profile_id: int,
+    request: Request,
+    name: str = Form(...),
+    age: int = Form(...),
+    gender: str = Form(...),
+    blood_group: str = Form(...),
+    allergies: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+
+    name = tidy_name(name)
+    submitted = {
+        "name": name,
+        "age": age,
+        "gender": match_option(gender, GENDER_OPTIONS),
+        "blood_group": match_option(blood_group, BLOOD_GROUP_OPTIONS),
+        "allergies": allergies.strip(),
+    }
+
+    error = None
+    if not name:
+        error = "Please enter a name."
+    elif age < 0 or age > 120:
+        error = "Age must be between 0 and 120."
+    elif gender not in GENDER_OPTIONS:
+        error = "Please choose a gender from the list."
+    elif blood_group not in BLOOD_GROUP_OPTIONS:
+        error = "Please choose a blood type from the list."
+
+    if error:
+        return render_edit_page(
+            request, user, profile, values=submitted, error=error, status_code=400
+        )
+
+    profile.name = name
+    profile.age = age
+    profile.gender = gender
+    profile.blood_group = blood_group
+    profile.allergies = allergies.strip() or None
+    session.add(profile)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
 
 
 @app.post("/p/{profile_id}/vaccines/new", include_in_schema=False)

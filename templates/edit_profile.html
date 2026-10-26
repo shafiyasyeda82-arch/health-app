@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ profile.name }} - Health App{% endblock %}
+
+{% block content %}
+  <p><a href="/p/{{ profile.id }}">&larr; Back to {{ profile.name }}</a></p>
+
+  <section class="card">
+    <h2>Edit profile</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/edit" method="post">
+      <label>Name
+        <input type="text" name="name" value="{{ values.name }}" required>
+      </label>
+      <label>Age
+        <input type="number" name="age" min="0" max="120" value="{{ values.age }}" required>
+      </label>
+      <label>Gender
+        <select name="gender" required
+                style="display:block;width:100%;padding:8px;margin-top:4px;box-sizing:border-box;">
+          <option value="" disabled {% if not values.gender %}selected{% endif %}>Choose one</option>
+          {% for g in gender_options %}
+            <option value="{{ g }}" {% if g == values.gender %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Blood type
+        <select name="blood_group" required
+                style="display:block;width:100%;padding:8px;margin-top:4px;box-sizing:border-box;">
+          <option value="" disabled {% if not values.blood_group %}selected{% endif %}>Choose one</option>
+          {% for b in blood_group_options %}
+            <option value="{{ b }}" {% if b == values.blood_group %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Allergies (optional)
+        <input type="text" name="allergies" value="{{ values.allergies }}">
+      </label>
+      <button type="submit">Save changes</button>
+    </form>
+    <p class="muted">
+      If you change the gender away from Female, the cycle tracker is hidden but
+      any logged periods are kept.
+    </p>
+  </section>
+{% endblock %}
