@@ -35,8 +35,14 @@
             {% endfor %}
           </select>
         </label>
-        <label>Blood group (optional)
-          <input type="text" name="blood_group">
+        <label>Blood type
+          <select name="blood_group" required
+                  style="display:block;width:100%;padding:8px;margin-top:4px;box-sizing:border-box;">
+            <option value="" disabled selected>Choose one</option>
+            {% for b in blood_group_options %}
+              <option value="{{ b }}">{{ b }}</option>
+            {% endfor %}
+          </select>
         </label>
         <label>Allergies (optional)
           <input type="text" name="allergies">

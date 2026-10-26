@@ -29,6 +29,7 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing. Create a .env file with SECRET_KEY=...")
 
 GENDER_OPTIONS = ["Female", "Male", "Other", "Prefer not to say"]
+BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Don't know"]
 
 
 @asynccontextmanager
@@ -50,6 +51,14 @@ templates = Jinja2Templates(directory="templates")
 
 
 # ---------- Helpers ----------
+
+
+def tidy_name(name: str) -> str:
+    """'  saida   SHAFIA ' -> 'Saida Shafia'. Also handles hyphens: 'mary-jane' -> 'Mary-Jane'."""
+    words = name.split()
+    return " ".join(
+        "-".join(part.capitalize() for part in word.split("-")) for word in words
+    )
 
 
 def get_current_user_or_none(
@@ -187,7 +196,12 @@ def home_page(
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"user": user, "profiles": profiles, "gender_options": GENDER_OPTIONS},
+        {
+            "user": user,
+            "profiles": profiles,
+            "gender_options": GENDER_OPTIONS,
+            "blood_group_options": BLOOD_GROUP_OPTIONS,
+        },
     )
 
 
@@ -279,21 +293,28 @@ def create_profile_form(
     name: str = Form(...),
     age: int = Form(...),
     gender: str = Form(...),
-    blood_group: str = Form(""),
+    blood_group: str = Form(...),
     allergies: str = Form(""),
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
+
+    name = tidy_name(name)
+    if not name:
+        raise HTTPException(status_code=400, detail="Please enter a name.")
+    if blood_group not in BLOOD_GROUP_OPTIONS:
+        raise HTTPException(status_code=400, detail="Please choose a valid blood type.")
     if gender not in GENDER_OPTIONS:
         gender = "Prefer not to say"
+
     profile = Profile(
         name=name,
         age=age,
         gender=gender,
-        blood_group=blood_group or None,
-        allergies=allergies or None,
+        blood_group=blood_group,
+        allergies=allergies.strip() or None,
         user_id=user.id,
     )
     session.add(profile)
@@ -476,7 +497,9 @@ def create_profile(
     user: User = Depends(require_user),
     session: Session = Depends(get_session),
 ):
-    profile = Profile(**data.model_dump(), user_id=user.id)
+    values = data.model_dump()
+    values["name"] = tidy_name(values["name"])
+    profile = Profile(**values, user_id=user.id)
     session.add(profile)
     session.commit()
     session.refresh(profile)
