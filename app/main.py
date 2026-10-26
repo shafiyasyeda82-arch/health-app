@@ -28,6 +28,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing. Create a .env file with SECRET_KEY=...")
 
+# Set COOKIE_SECURE=true on the live site (HTTPS). Leave it unset on your laptop.
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").strip().lower() == "true"
+
 GENDER_OPTIONS = ["Female", "Male", "Other", "Prefer not to say"]
 BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Don't know"]
 
@@ -43,7 +46,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     same_site="lax",
-    https_only=False,  # change to True when the app is online with HTTPS
+    https_only=COOKIE_SECURE,
     max_age=60 * 60 * 24 * 7,
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
