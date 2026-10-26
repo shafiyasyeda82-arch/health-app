@@ -94,10 +94,13 @@
                 {% if c.end_date %}to {{ c.end_date.strftime('%d %b %Y') }}{% endif %}
                 {% if c.notes %}<br><span class="muted">{{ c.notes }}</span>{% endif %}
               </span>
-              <form action="/p/{{ profile.id }}/cycles/{{ c.id }}/delete" method="post"
-                    onsubmit="return confirm('Delete this entry?');">
-                <button type="submit" class="danger small">Delete</button>
-              </form>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/cycles/{{ c.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/cycles/{{ c.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this entry?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
             </li>
           {% endfor %}
         </ul>
@@ -141,10 +144,13 @@
               </span>
               {% if v.notes %}<br><span class="muted">{{ v.notes }}</span>{% endif %}
             </span>
-            <form action="/p/{{ profile.id }}/vaccines/{{ v.id }}/delete" method="post"
-                  onsubmit="return confirm('Delete this vaccine record?');">
-              <button type="submit" class="danger small">Delete</button>
-            </form>
+            <span style="display:flex;gap:10px;align-items:center;">
+              <a href="/p/{{ profile.id }}/vaccines/{{ v.id }}/edit">Edit</a>
+              <form action="/p/{{ profile.id }}/vaccines/{{ v.id }}/delete" method="post"
+                    onsubmit="return confirm('Delete this vaccine record?');">
+                <button type="submit" class="danger small">Delete</button>
+              </form>
+            </span>
           </li>
         {% endfor %}
       </ul>

@@ -92,6 +92,22 @@ def get_owned_profile(profile_id: int, user: User, session: Session) -> Profile:
     return profile
 
 
+def get_owned_vaccine(
+    vaccine_id: int, profile_id: int, session: Session
+) -> VaccineRecord:
+    record = session.get(VaccineRecord, vaccine_id)
+    if record is None or record.profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="Vaccine record not found")
+    return record
+
+
+def get_owned_cycle(cycle_id: int, profile_id: int, session: Session) -> CycleEntry:
+    entry = session.get(CycleEntry, cycle_id)
+    if entry is None or entry.profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return entry
+
+
 def tracks_cycle(profile: Profile) -> bool:
     return profile.gender.strip().lower() == "female"
 
@@ -219,6 +235,65 @@ def render_edit_page(
     )
 
 
+def render_edit_vaccine_page(
+    request: Request,
+    user: User,
+    profile: Profile,
+    record: VaccineRecord,
+    values: Optional[dict] = None,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    if values is None:
+        values = {
+            "vaccine_name": record.vaccine_name,
+            "date_taken": record.date_taken.isoformat(),
+            "next_due": record.next_due.isoformat() if record.next_due else "",
+            "notes": record.notes or "",
+        }
+    return templates.TemplateResponse(
+        request,
+        "edit_vaccine.html",
+        {
+            "user": user,
+            "profile": profile,
+            "record": record,
+            "values": values,
+            "error": error,
+        },
+        status_code=status_code,
+    )
+
+
+def render_edit_cycle_page(
+    request: Request,
+    user: User,
+    profile: Profile,
+    entry: CycleEntry,
+    values: Optional[dict] = None,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    if values is None:
+        values = {
+            "start_date": entry.start_date.isoformat(),
+            "end_date": entry.end_date.isoformat() if entry.end_date else "",
+            "notes": entry.notes or "",
+        }
+    return templates.TemplateResponse(
+        request,
+        "edit_cycle.html",
+        {
+            "user": user,
+            "profile": profile,
+            "entry": entry,
+            "values": values,
+            "error": error,
+        },
+        status_code=status_code,
+    )
+
+
 # ---------- Web pages: home, signup, login ----------
 
 
@@ -325,7 +400,7 @@ def logout(request: Request):
     return RedirectResponse(url="/login", status_code=303)
 
 
-# ---------- Web pages: profiles, vaccines, cycle tracker ----------
+# ---------- Web pages: profiles ----------
 
 
 @app.post("/profiles/new", include_in_schema=False)
@@ -438,6 +513,9 @@ def edit_profile_form(
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
 
 
+# ---------- Web pages: vaccines ----------
+
+
 @app.post("/p/{profile_id}/vaccines/new", include_in_schema=False)
 def add_vaccine_form(
     profile_id: int,
@@ -453,26 +531,106 @@ def add_vaccine_form(
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
 
+    def show_error(message: str):
+        return render_profile_page(
+            request, session, user, profile, error=message, status_code=400
+        )
+
+    name = vaccine_name.strip()
+    if not name:
+        return show_error("Please enter a vaccine name.")
+
     try:
         taken = date.fromisoformat(date_taken)
         due = date.fromisoformat(next_due) if next_due else None
     except ValueError:
-        return render_profile_page(
-            request,
-            session,
-            user,
-            profile,
-            error="Please enter valid dates.",
-            status_code=400,
-        )
+        return show_error("Please enter valid dates.")
+
+    if due is not None and due < taken:
+        return show_error("The next due date cannot be before the date taken.")
 
     record = VaccineRecord(
         profile_id=profile_id,
-        vaccine_name=vaccine_name.strip(),
+        vaccine_name=name,
         date_taken=taken,
         next_due=due,
         notes=notes.strip() or None,
     )
+    session.add(record)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+@app.get(
+    "/p/{profile_id}/vaccines/{vaccine_id}/edit",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def edit_vaccine_page(
+    profile_id: int,
+    vaccine_id: int,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    record = get_owned_vaccine(vaccine_id, profile_id, session)
+    return render_edit_vaccine_page(request, user, profile, record)
+
+
+@app.post("/p/{profile_id}/vaccines/{vaccine_id}/edit", include_in_schema=False)
+def edit_vaccine_form(
+    profile_id: int,
+    vaccine_id: int,
+    request: Request,
+    vaccine_name: str = Form(...),
+    date_taken: str = Form(...),
+    next_due: str = Form(""),
+    notes: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    record = get_owned_vaccine(vaccine_id, profile_id, session)
+
+    submitted = {
+        "vaccine_name": vaccine_name.strip(),
+        "date_taken": date_taken,
+        "next_due": next_due,
+        "notes": notes.strip(),
+    }
+
+    def show_error(message: str):
+        return render_edit_vaccine_page(
+            request,
+            user,
+            profile,
+            record,
+            values=submitted,
+            error=message,
+            status_code=400,
+        )
+
+    if not submitted["vaccine_name"]:
+        return show_error("Please enter a vaccine name.")
+
+    try:
+        taken = date.fromisoformat(date_taken)
+        due = date.fromisoformat(next_due) if next_due else None
+    except ValueError:
+        return show_error("Please enter valid dates.")
+
+    if due is not None and due < taken:
+        return show_error("The next due date cannot be before the date taken.")
+
+    record.vaccine_name = submitted["vaccine_name"]
+    record.date_taken = taken
+    record.next_due = due
+    record.notes = submitted["notes"] or None
     session.add(record)
     session.commit()
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
@@ -488,13 +646,13 @@ def delete_vaccine_form(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     get_owned_profile(profile_id, user, session)
-
-    record = session.get(VaccineRecord, vaccine_id)
-    if record is None or record.profile_id != profile_id:
-        raise HTTPException(status_code=404, detail="Vaccine record not found")
+    record = get_owned_vaccine(vaccine_id, profile_id, session)
     session.delete(record)
     session.commit()
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+# ---------- Web pages: cycle tracker ----------
 
 
 @app.post("/p/{profile_id}/cycles/new", include_in_schema=False)
@@ -545,6 +703,81 @@ def add_cycle_form(
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
 
 
+@app.get(
+    "/p/{profile_id}/cycles/{cycle_id}/edit",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def edit_cycle_page(
+    profile_id: int,
+    cycle_id: int,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    if not tracks_cycle(profile):
+        raise HTTPException(status_code=404, detail="Not available for this profile")
+    entry = get_owned_cycle(cycle_id, profile_id, session)
+    return render_edit_cycle_page(request, user, profile, entry)
+
+
+@app.post("/p/{profile_id}/cycles/{cycle_id}/edit", include_in_schema=False)
+def edit_cycle_form(
+    profile_id: int,
+    cycle_id: int,
+    request: Request,
+    start_date: str = Form(...),
+    end_date: str = Form(""),
+    notes: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    if not tracks_cycle(profile):
+        raise HTTPException(status_code=404, detail="Not available for this profile")
+    entry = get_owned_cycle(cycle_id, profile_id, session)
+
+    submitted = {
+        "start_date": start_date,
+        "end_date": end_date,
+        "notes": notes.strip(),
+    }
+
+    def show_error(message: str):
+        return render_edit_cycle_page(
+            request,
+            user,
+            profile,
+            entry,
+            values=submitted,
+            error=message,
+            status_code=400,
+        )
+
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date) if end_date else None
+    except ValueError:
+        return show_error("Please enter valid dates.")
+
+    if start > date.today():
+        return show_error("The start date cannot be in the future.")
+    if end is not None and end < start:
+        return show_error("The end date cannot be before the start date.")
+
+    entry.start_date = start
+    entry.end_date = end
+    entry.notes = submitted["notes"] or None
+    session.add(entry)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
 @app.post("/p/{profile_id}/cycles/{cycle_id}/delete", include_in_schema=False)
 def delete_cycle_form(
     profile_id: int,
@@ -555,10 +788,7 @@ def delete_cycle_form(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     get_owned_profile(profile_id, user, session)
-
-    entry = session.get(CycleEntry, cycle_id)
-    if entry is None or entry.profile_id != profile_id:
-        raise HTTPException(status_code=404, detail="Entry not found")
+    entry = get_owned_cycle(cycle_id, profile_id, session)
     session.delete(entry)
     session.commit()
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)

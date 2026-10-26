@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Edit vaccine - Health App{% endblock %}
+
+{% block content %}
+  <p><a href="/p/{{ profile.id }}">&larr; Back to {{ profile.name }}</a></p>
+
+  <section class="card">
+    <h2>Edit vaccine record</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/vaccines/{{ record.id }}/edit" method="post">
+      <label>Vaccine name
+        <input type="text" name="vaccine_name" value="{{ values.vaccine_name }}" required>
+      </label>
+      <label>Date taken
+        <input type="date" name="date_taken" value="{{ values.date_taken }}" required>
+      </label>
+      <label>Next due (optional)
+        <input type="date" name="next_due" value="{{ values.next_due }}">
+      </label>
+      <label>Notes (optional)
+        <input type="text" name="notes" value="{{ values.notes }}">
+      </label>
+      <button type="submit">Save changes</button>
+    </form>
+  </section>
+{% endblock %}
