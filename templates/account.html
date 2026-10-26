@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Account - Health App{% endblock %}
+
+{% block content %}
+  <p><a href="/">&larr; Back to profiles</a></p>
+
+  <section class="card">
+    <h2>Your account</h2>
+    <p>Email: <strong>{{ user.email }}</strong></p>
+    <p class="muted">
+      You have {{ profile_count }} profile{{ '' if profile_count == 1 else 's' }}.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Delete account</h2>
+    <p class="muted">
+      This permanently deletes your account and all of your profiles, vaccine records
+      and period entries. It cannot be undone.
+    </p>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/account/delete" method="post"
+          onsubmit="return confirm('Delete your account and ALL its data? This cannot be undone.');">
+      <label>Enter your password to confirm
+        <input type="password" name="password" required>
+      </label>
+      <button type="submit" class="danger">Delete my account</button>
+    </form>
+  </section>
+{% endblock %}

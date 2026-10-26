@@ -108,6 +108,23 @@ def get_owned_cycle(cycle_id: int, profile_id: int, session: Session) -> CycleEn
     return entry
 
 
+def delete_profile_data(session: Session, profile: Profile) -> None:
+    """Delete a profile and everything attached to it. The caller commits."""
+    vaccines = session.exec(
+        select(VaccineRecord).where(VaccineRecord.profile_id == profile.id)
+    ).all()
+    for record in vaccines:
+        session.delete(record)
+
+    cycles = session.exec(
+        select(CycleEntry).where(CycleEntry.profile_id == profile.id)
+    ).all()
+    for entry in cycles:
+        session.delete(entry)
+
+    session.delete(profile)
+
+
 def tracks_cycle(profile: Profile) -> bool:
     return profile.gender.strip().lower() == "female"
 
@@ -294,6 +311,22 @@ def render_edit_cycle_page(
     )
 
 
+def render_account_page(
+    request: Request,
+    session: Session,
+    user: User,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    profiles = session.exec(select(Profile).where(Profile.user_id == user.id)).all()
+    return templates.TemplateResponse(
+        request,
+        "account.html",
+        {"user": user, "profile_count": len(profiles), "error": error},
+        status_code=status_code,
+    )
+
+
 # ---------- Web pages: home, signup, login ----------
 
 
@@ -398,6 +431,49 @@ def login(
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+# ---------- Web pages: account ----------
+
+
+@app.get("/account", response_class=HTMLResponse, include_in_schema=False)
+def account_page(
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    return render_account_page(request, session, user)
+
+
+@app.post("/account/delete", include_in_schema=False)
+def delete_account_form(
+    request: Request,
+    password: str = Form(...),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    if not verify_password(password, user.password_hash):
+        return render_account_page(
+            request,
+            session,
+            user,
+            error="Wrong password. Your account was not deleted.",
+            status_code=400,
+        )
+
+    profiles = session.exec(select(Profile).where(Profile.user_id == user.id)).all()
+    for profile in profiles:
+        delete_profile_data(session, profile)
+    session.delete(user)
+    session.commit()
+
+    request.session.clear()
+    return RedirectResponse(url="/signup", status_code=303)
 
 
 # ---------- Web pages: profiles ----------
@@ -511,6 +587,20 @@ def edit_profile_form(
     session.add(profile)
     session.commit()
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+@app.post("/p/{profile_id}/delete", include_in_schema=False)
+def delete_profile_form(
+    profile_id: int,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    delete_profile_data(session, profile)
+    session.commit()
+    return RedirectResponse(url="/", status_code=303)
 
 
 # ---------- Web pages: vaccines ----------
@@ -792,33 +882,6 @@ def delete_cycle_form(
     session.delete(entry)
     session.commit()
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
-
-
-@app.post("/p/{profile_id}/delete", include_in_schema=False)
-def delete_profile_form(
-    profile_id: int,
-    user: Optional[User] = Depends(get_current_user_or_none),
-    session: Session = Depends(get_session),
-):
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
-    profile = get_owned_profile(profile_id, user, session)
-
-    vaccines = session.exec(
-        select(VaccineRecord).where(VaccineRecord.profile_id == profile_id)
-    ).all()
-    for record in vaccines:
-        session.delete(record)
-
-    cycles = session.exec(
-        select(CycleEntry).where(CycleEntry.profile_id == profile_id)
-    ).all()
-    for entry in cycles:
-        session.delete(entry)
-
-    session.delete(profile)
-    session.commit()
-    return RedirectResponse(url="/", status_code=303)
 
 
 # ---------- API routes (login required, your own data only) ----------
