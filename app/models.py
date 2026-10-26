@@ -27,6 +27,14 @@ class Profile(ProfileBase, table=True):
     user_id: int = Field(foreign_key="user.id", index=True)
 
 
+class CycleEntry(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    start_date: date
+    end_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
 class VaccineBase(SQLModel):
     vaccine_name: str
     date_taken: date

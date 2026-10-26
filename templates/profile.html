@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile.name }} - Health App{% endblock %}
+
+{% block content %}
+  <p><a href="/">&larr; Back to profiles</a></p>
+
+  <section class="card">
+    <h2>{{ profile.name }}</h2>
+    <p class="muted">
+      Age {{ profile.age }} &middot; {{ profile.gender }}
+      {% if profile.blood_group %}&middot; Blood group {{ profile.blood_group }}{% endif %}
+    </p>
+    {% if profile.allergies %}
+      <p>Allergies: {{ profile.allergies }}</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Reminders</h2>
+    <p class="muted">Overdue, or due in the next 90 days.</p>
+    {% if reminders %}
+      <ul class="plain">
+        {% for r in reminders %}
+          <li class="row">
+            <span>
+              <strong>{{ r.vaccine_name }}</strong><br>
+              <span class="muted">Due {{ r.next_due.strftime('%d %b %Y') }}</span>
+            </span>
+            {% if r.status == "overdue" %}
+              <span class="badge overdue">{{ -r.days_left }} day{{ '' if r.days_left == -1 else 's' }} overdue</span>
+            {% elif r.days_left == 0 %}
+              <span class="badge soon">due today</span>
+            {% else %}
+              <span class="badge soon">in {{ r.days_left }} day{{ '' if r.days_left == 1 else 's' }}</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Nothing due soon.</p>
+    {% endif %}
+  </section>
+
+  {% if show_cycle %}
+    <section class="card">
+      <h2>Cycle tracker</h2>
+
+      {% if cycle_info %}
+        <p>
+          Estimated next period start:
+          <strong>{{ cycle_info.next_start.strftime('%d %b %Y') }}</strong>
+          {% if cycle_info.days_until > 0 %}
+            (in {{ cycle_info.days_until }} day{{ '' if cycle_info.days_until == 1 else 's' }})
+          {% elif cycle_info.days_until == 0 %}
+            (today)
+          {% else %}
+            (expected {{ -cycle_info.days_until }} day{{ '' if cycle_info.days_until == -1 else 's' }} ago, so it may be late)
+          {% endif %}
+        </p>
+        <p class="muted">
+          Based on your last {{ cycle_info.cycles_used }} cycle{{ '' if cycle_info.cycles_used == 1 else 's' }}
+          (average {{ cycle_info.average_days }} days). This is only an estimate from the dates you log.
+          It is not medical advice and must not be used to avoid pregnancy.
+        </p>
+      {% else %}
+        <p class="muted">Log at least two period start dates to get an estimate of the next one.</p>
+      {% endif %}
+
+      {% if cycle_error %}
+        <p class="error">{{ cycle_error }}</p>
+      {% endif %}
+      <form action="/p/{{ profile.id }}/cycles/new" method="post">
+        <label>Period start date
+          <input type="date" name="start_date" required>
+        </label>
+        <label>Period end date (optional)
+          <input type="date" name="end_date">
+        </label>
+        <label>Notes (optional)
+          <input type="text" name="notes">
+        </label>
+        <button type="submit">Save period</button>
+      </form>
+
+      {% if cycles %}
+        <h3>Logged periods</h3>
+        <ul class="plain">
+          {% for c in cycles %}
+            <li class="row">
+              <span>
+                <strong>{{ c.start_date.strftime('%d %b %Y') }}</strong>
+                {% if c.end_date %}to {{ c.end_date.strftime('%d %b %Y') }}{% endif %}
+                {% if c.notes %}<br><span class="muted">{{ c.notes }}</span>{% endif %}
+              </span>
+              <form action="/p/{{ profile.id }}/cycles/{{ c.id }}/delete" method="post"
+                    onsubmit="return confirm('Delete this entry?');">
+                <button type="submit" class="danger small">Delete</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <h2>Add a vaccine</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/vaccines/new" method="post">
+      <label>Vaccine name
+        <input type="text" name="vaccine_name" required>
+      </label>
+      <label>Date taken
+        <input type="date" name="date_taken" required>
+      </label>
+      <label>Next due (optional)
+        <input type="date" name="next_due">
+      </label>
+      <label>Notes (optional)
+        <input type="text" name="notes">
+      </label>
+      <button type="submit">Save vaccine</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>All vaccine records</h2>
+    {% if vaccines %}
+      <ul class="plain">
+        {% for v in vaccines %}
+          <li class="row">
+            <span>
+              <strong>{{ v.vaccine_name }}</strong><br>
+              <span class="muted">
+                Taken {{ v.date_taken.strftime('%d %b %Y') }}
+                {% if v.next_due %}&middot; next due {{ v.next_due.strftime('%d %b %Y') }}{% endif %}
+              </span>
+              {% if v.notes %}<br><span class="muted">{{ v.notes }}</span>{% endif %}
+            </span>
+            <form action="/p/{{ profile.id }}/vaccines/{{ v.id }}/delete" method="post"
+                  onsubmit="return confirm('Delete this vaccine record?');">
+              <button type="submit" class="danger small">Delete</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No vaccine records yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Delete this profile</h2>
+    <p class="muted">This permanently removes the profile and all of its records.</p>
+    <form action="/p/{{ profile.id }}/delete" method="post"
+          onsubmit="return confirm('Delete this profile and all its records? This cannot be undone.');">
+      <button type="submit" class="danger">Delete profile</button>
+    </form>
+  </section>
+{% endblock %}

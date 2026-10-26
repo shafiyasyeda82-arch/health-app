@@ -97,3 +97,58 @@ footer {
   font-size: 0.85rem;
   padding: 16px;
 }
+
+ul.plain {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row form {
+  margin: 0;
+}
+
+.muted {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.badge.overdue {
+  background: #fdecea;
+  color: #b3261e;
+}
+
+.badge.soon {
+  background: #fff4d6;
+  color: #8a5a00;
+}
+
+button.danger {
+  background: #b3261e;
+}
+
+button.small {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
