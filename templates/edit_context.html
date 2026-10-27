@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Edit note - Health App{% endblock %}
+
+{% block content %}
+  <p><a href="/p/{{ profile.id }}">&larr; Back to {{ profile.name }}</a></p>
+
+  <section class="card">
+    <h2>Edit note</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/context/{{ note.id }}/edit" method="post">
+      <label>Date
+        <input type="date" name="note_date" value="{{ values.note_date }}" required>
+      </label>
+      <p><strong>What's been going on?</strong></p>
+      <div class="checks">
+        {% for opt in context_options %}
+          <label>
+            <input type="checkbox" name="tags" value="{{ opt }}"
+                   {% if opt in values.tags %}checked{% endif %}>
+            {{ opt }}
+          </label>
+        {% endfor %}
+      </div>
+      <label>In your own words (optional)
+        <textarea name="note" rows="3" maxlength="500">{{ values.note }}</textarea>
+      </label>
+      <button type="submit">Save changes</button>
+    </form>
+  </section>
+{% endblock %}

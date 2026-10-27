@@ -13,9 +13,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import create_db_and_tables, get_session
 from app.models import (
+    ContextNote,
     CycleEntry,
+    CycleSetting,
     Profile,
     ProfileCreate,
+    SymptomLog,
     User,
     VaccineCreate,
     VaccineRecord,
@@ -33,6 +36,27 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").strip().lower() == "tru
 
 GENDER_OPTIONS = ["Female", "Male", "Other", "Prefer not to say"]
 BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Don't know"]
+SYMPTOM_OPTIONS = [
+    "Irregular periods",
+    "Acne",
+    "Excess hair growth",
+    "Hair thinning",
+    "Weight gain",
+    "Dark skin patches",
+    "Fatigue",
+    "Mood changes",
+    "Pelvic pain",
+]
+CONTEXT_OPTIONS = [
+    "Stress",
+    "Illness",
+    "Travel",
+    "Big weight change",
+    "New medication",
+    "Intense exercise",
+]
+LATE_AFTER_DAYS = 5  # show the late-period card this many days after the estimate
+NOTE_MAX = 500
 
 
 @asynccontextmanager
@@ -73,6 +97,15 @@ def match_option(value: Optional[str], options: List[str]) -> str:
     return ""
 
 
+def join_options(chosen: List[str], allowed: List[str]) -> str:
+    """Keep only allowed options (in their usual order) and join them with commas."""
+    return ",".join(option for option in allowed if option in chosen)
+
+
+def split_options(text: Optional[str]) -> List[str]:
+    return [part for part in (text or "").split(",") if part]
+
+
 def get_current_user_or_none(
     request: Request, session: Session = Depends(get_session)
 ) -> Optional[User]:
@@ -111,25 +144,53 @@ def get_owned_cycle(cycle_id: int, profile_id: int, session: Session) -> CycleEn
     return entry
 
 
+def get_owned_symptom(
+    symptom_id: int, profile_id: int, session: Session
+) -> SymptomLog:
+    log = session.get(SymptomLog, symptom_id)
+    if log is None or log.profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return log
+
+
+def get_owned_context(
+    context_id: int, profile_id: int, session: Session
+) -> ContextNote:
+    note = session.get(ContextNote, context_id)
+    if note is None or note.profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
 def delete_profile_data(session: Session, profile: Profile) -> None:
     """Delete a profile and everything attached to it. The caller commits."""
-    vaccines = session.exec(
-        select(VaccineRecord).where(VaccineRecord.profile_id == profile.id)
-    ).all()
-    for record in vaccines:
-        session.delete(record)
-
-    cycles = session.exec(
-        select(CycleEntry).where(CycleEntry.profile_id == profile.id)
-    ).all()
-    for entry in cycles:
-        session.delete(entry)
-
+    for model in (VaccineRecord, CycleEntry, SymptomLog, ContextNote, CycleSetting):
+        rows = session.exec(
+            select(model).where(model.profile_id == profile.id)
+        ).all()
+        for row in rows:
+            session.delete(row)
     session.delete(profile)
 
 
 def tracks_cycle(profile: Profile) -> bool:
     return profile.gender.strip().lower() == "female"
+
+
+def get_cycle_active(session: Session, profile_id: int) -> bool:
+    setting = session.exec(
+        select(CycleSetting).where(CycleSetting.profile_id == profile_id)
+    ).first()
+    return True if setting is None else setting.tracking_active
+
+
+def cycle_enabled(session: Session, profile: Profile) -> bool:
+    return tracks_cycle(profile) and get_cycle_active(session, profile.id)
+
+
+def require_cycle_access(session: Session, profile: Profile) -> None:
+    if not cycle_enabled(session, profile):
+        raise HTTPException(status_code=404, detail="Not available for this profile")
 
 
 def build_cycle_info(entries: List[CycleEntry]) -> Optional[dict]:
@@ -145,8 +206,82 @@ def build_cycle_info(entries: List[CycleEntry]) -> Optional[dict]:
     return {
         "average_days": average,
         "cycles_used": len(recent),
+        "gaps": recent,
         "next_start": next_start,
         "days_until": (next_start - date.today()).days,
+    }
+
+
+def build_late_info(
+    profile: Profile,
+    cycle_info: Optional[dict],
+    symptom_logs: List[SymptomLog],
+    context_notes: List[ContextNote],
+) -> Optional[dict]:
+    """Explain a late period using only what the person has logged. Never a diagnosis."""
+    if cycle_info is None:
+        return None
+    days_late = -cycle_info["days_until"]
+    if days_late < LATE_AFTER_DAYS:
+        return None
+
+    today = date.today()
+    factors: List[str] = []
+
+    gaps = cycle_info["gaps"]
+    average = cycle_info["average_days"]
+    if len(gaps) >= 2 and max(gaps) - min(gaps) >= 8:
+        spread = max(gaps) - min(gaps)
+        factors.append(
+            f"Your logged cycles have varied by up to {spread} days in length, "
+            "so a late period is not unusual for you."
+        )
+    elif average > 35:
+        factors.append(f"Your cycles have been long (about {average} days on average).")
+    elif average < 21:
+        factors.append(f"Your cycles have been short (about {average} days on average).")
+
+    seen_symptoms: List[str] = []
+    for log in symptom_logs:
+        if (today - log.log_date).days <= 90:
+            for symptom in split_options(log.symptoms):
+                if symptom not in seen_symptoms:
+                    seen_symptoms.append(symptom)
+    if seen_symptoms:
+        factors.append(
+            "You have logged symptoms that can go with hormonal conditions such as PCOS ("
+            + ", ".join(s.lower() for s in seen_symptoms[:5])
+            + "). These can make periods irregular. Only a doctor can tell whether "
+            "that applies to you."
+        )
+
+    if profile.age <= 19:
+        factors.append(
+            "Cycles are often irregular in the first few years after periods begin."
+        )
+    elif profile.age >= 45:
+        factors.append(
+            "Cycles often become less regular in the years before menopause."
+        )
+
+    recent_tags: List[str] = []
+    for note in context_notes:
+        if (today - note.note_date).days <= 60:
+            for tag in split_options(note.tags):
+                if tag not in recent_tags:
+                    recent_tags.append(tag)
+    if recent_tags:
+        ordered = [t for t in CONTEXT_OPTIONS if t in recent_tags]
+        factors.append(
+            "You noted these recently: "
+            + ", ".join(t.lower() for t in ordered)
+            + ". Things like these can delay a period."
+        )
+
+    return {
+        "expected": cycle_info["next_start"],
+        "days_late": days_late,
+        "factors": factors,
     }
 
 
@@ -186,6 +321,8 @@ def render_profile_page(
     profile: Profile,
     error: Optional[str] = None,
     cycle_error: Optional[str] = None,
+    symptom_error: Optional[str] = None,
+    context_error: Optional[str] = None,
     status_code: int = 200,
 ):
     vaccines = session.exec(
@@ -195,16 +332,31 @@ def render_profile_page(
     ).all()
     reminders = build_reminders(session, profile.id, days=90)
 
-    show_cycle = tracks_cycle(profile)
-    cycles = []
+    is_female = tracks_cycle(profile)
+    show_cycle = is_female and get_cycle_active(session, profile.id)
+    cycles: List[CycleEntry] = []
     cycle_info = None
+    late_info = None
+    symptom_logs: List[SymptomLog] = []
+    context_notes: List[ContextNote] = []
     if show_cycle:
         cycles = session.exec(
             select(CycleEntry)
             .where(CycleEntry.profile_id == profile.id)
             .order_by(col(CycleEntry.start_date).desc())
         ).all()
+        symptom_logs = session.exec(
+            select(SymptomLog)
+            .where(SymptomLog.profile_id == profile.id)
+            .order_by(col(SymptomLog.log_date).desc(), col(SymptomLog.id).desc())
+        ).all()
+        context_notes = session.exec(
+            select(ContextNote)
+            .where(ContextNote.profile_id == profile.id)
+            .order_by(col(ContextNote.note_date).desc(), col(ContextNote.id).desc())
+        ).all()
         cycle_info = build_cycle_info(cycles)
+        late_info = build_late_info(profile, cycle_info, symptom_logs, context_notes)
 
     return templates.TemplateResponse(
         request,
@@ -214,11 +366,20 @@ def render_profile_page(
             "profile": profile,
             "vaccines": vaccines,
             "reminders": reminders,
+            "is_female": is_female,
             "show_cycle": show_cycle,
             "cycles": cycles,
             "cycle_info": cycle_info,
+            "late_info": late_info,
+            "symptom_logs": symptom_logs,
+            "symptom_options": SYMPTOM_OPTIONS,
+            "context_notes": context_notes,
+            "context_options": CONTEXT_OPTIONS,
+            "today": date.today().isoformat(),
             "error": error,
             "cycle_error": cycle_error,
+            "symptom_error": symptom_error,
+            "context_error": context_error,
         },
         status_code=status_code,
     )
@@ -308,6 +469,66 @@ def render_edit_cycle_page(
             "profile": profile,
             "entry": entry,
             "values": values,
+            "error": error,
+        },
+        status_code=status_code,
+    )
+
+
+def render_edit_symptom_page(
+    request: Request,
+    user: User,
+    profile: Profile,
+    log: SymptomLog,
+    values: Optional[dict] = None,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    if values is None:
+        values = {
+            "log_date": log.log_date.isoformat(),
+            "symptoms": split_options(log.symptoms),
+            "notes": log.notes or "",
+        }
+    return templates.TemplateResponse(
+        request,
+        "edit_symptom.html",
+        {
+            "user": user,
+            "profile": profile,
+            "log": log,
+            "values": values,
+            "symptom_options": SYMPTOM_OPTIONS,
+            "error": error,
+        },
+        status_code=status_code,
+    )
+
+
+def render_edit_context_page(
+    request: Request,
+    user: User,
+    profile: Profile,
+    note: ContextNote,
+    values: Optional[dict] = None,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    if values is None:
+        values = {
+            "note_date": note.note_date.isoformat(),
+            "tags": split_options(note.tags),
+            "note": note.note or "",
+        }
+    return templates.TemplateResponse(
+        request,
+        "edit_context.html",
+        {
+            "user": user,
+            "profile": profile,
+            "note": note,
+            "values": values,
+            "context_options": CONTEXT_OPTIONS,
             "error": error,
         },
         status_code=status_code,
@@ -748,6 +969,32 @@ def delete_vaccine_form(
 # ---------- Web pages: cycle tracker ----------
 
 
+@app.post("/p/{profile_id}/cycle/tracking", include_in_schema=False)
+def set_cycle_tracking(
+    profile_id: int,
+    active: str = Form(...),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    if not tracks_cycle(profile):
+        raise HTTPException(status_code=404, detail="Not available for this profile")
+
+    wanted = active == "1"
+    setting = session.exec(
+        select(CycleSetting).where(CycleSetting.profile_id == profile_id)
+    ).first()
+    if setting is None:
+        setting = CycleSetting(profile_id=profile_id, tracking_active=wanted)
+    else:
+        setting.tracking_active = wanted
+    session.add(setting)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
 @app.post("/p/{profile_id}/cycles/new", include_in_schema=False)
 def add_cycle_form(
     profile_id: int,
@@ -761,8 +1008,7 @@ def add_cycle_form(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
-    if not tracks_cycle(profile):
-        raise HTTPException(status_code=404, detail="Not available for this profile")
+    require_cycle_access(session, profile)
 
     def show_error(message: str):
         return render_profile_page(
@@ -811,8 +1057,7 @@ def edit_cycle_page(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
-    if not tracks_cycle(profile):
-        raise HTTPException(status_code=404, detail="Not available for this profile")
+    require_cycle_access(session, profile)
     entry = get_owned_cycle(cycle_id, profile_id, session)
     return render_edit_cycle_page(request, user, profile, entry)
 
@@ -831,8 +1076,7 @@ def edit_cycle_form(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
-    if not tracks_cycle(profile):
-        raise HTTPException(status_code=404, detail="Not available for this profile")
+    require_cycle_access(session, profile)
     entry = get_owned_cycle(cycle_id, profile_id, session)
 
     submitted = {
@@ -882,6 +1126,286 @@ def delete_cycle_form(
         return RedirectResponse(url="/login", status_code=303)
     get_owned_profile(profile_id, user, session)
     entry = get_owned_cycle(cycle_id, profile_id, session)
+    session.delete(entry)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+# ---------- Web pages: symptom log ----------
+
+
+@app.post("/p/{profile_id}/symptoms/new", include_in_schema=False)
+def add_symptom_form(
+    profile_id: int,
+    request: Request,
+    log_date: str = Form(...),
+    symptoms: List[str] = Form(default=[]),
+    notes: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    require_cycle_access(session, profile)
+
+    def show_error(message: str):
+        return render_profile_page(
+            request,
+            session,
+            user,
+            profile,
+            symptom_error=message,
+            status_code=400,
+        )
+
+    try:
+        logged = date.fromisoformat(log_date)
+    except ValueError:
+        return show_error("Please enter a valid date.")
+    if logged > date.today():
+        return show_error("The date cannot be in the future.")
+
+    chosen = join_options(symptoms, SYMPTOM_OPTIONS)
+    text = notes.strip()[:NOTE_MAX]
+    if not chosen and not text:
+        return show_error("Please tick at least one symptom or write a note.")
+
+    log = SymptomLog(
+        profile_id=profile_id,
+        log_date=logged,
+        symptoms=chosen,
+        notes=text or None,
+    )
+    session.add(log)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+@app.get(
+    "/p/{profile_id}/symptoms/{symptom_id}/edit",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def edit_symptom_page(
+    profile_id: int,
+    symptom_id: int,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    require_cycle_access(session, profile)
+    log = get_owned_symptom(symptom_id, profile_id, session)
+    return render_edit_symptom_page(request, user, profile, log)
+
+
+@app.post("/p/{profile_id}/symptoms/{symptom_id}/edit", include_in_schema=False)
+def edit_symptom_form(
+    profile_id: int,
+    symptom_id: int,
+    request: Request,
+    log_date: str = Form(...),
+    symptoms: List[str] = Form(default=[]),
+    notes: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    require_cycle_access(session, profile)
+    log = get_owned_symptom(symptom_id, profile_id, session)
+
+    chosen = join_options(symptoms, SYMPTOM_OPTIONS)
+    text = notes.strip()[:NOTE_MAX]
+    submitted = {
+        "log_date": log_date,
+        "symptoms": split_options(chosen),
+        "notes": text,
+    }
+
+    def show_error(message: str):
+        return render_edit_symptom_page(
+            request,
+            user,
+            profile,
+            log,
+            values=submitted,
+            error=message,
+            status_code=400,
+        )
+
+    try:
+        logged = date.fromisoformat(log_date)
+    except ValueError:
+        return show_error("Please enter a valid date.")
+    if logged > date.today():
+        return show_error("The date cannot be in the future.")
+    if not chosen and not text:
+        return show_error("Please tick at least one symptom or write a note.")
+
+    log.log_date = logged
+    log.symptoms = chosen
+    log.notes = text or None
+    session.add(log)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+@app.post("/p/{profile_id}/symptoms/{symptom_id}/delete", include_in_schema=False)
+def delete_symptom_form(
+    profile_id: int,
+    symptom_id: int,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    get_owned_profile(profile_id, user, session)
+    log = get_owned_symptom(symptom_id, profile_id, session)
+    session.delete(log)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+# ---------- Web pages: "What's been going on?" notes ----------
+
+
+@app.post("/p/{profile_id}/context/new", include_in_schema=False)
+def add_context_form(
+    profile_id: int,
+    request: Request,
+    note_date: str = Form(...),
+    tags: List[str] = Form(default=[]),
+    note: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    require_cycle_access(session, profile)
+
+    def show_error(message: str):
+        return render_profile_page(
+            request,
+            session,
+            user,
+            profile,
+            context_error=message,
+            status_code=400,
+        )
+
+    try:
+        noted = date.fromisoformat(note_date)
+    except ValueError:
+        return show_error("Please enter a valid date.")
+    if noted > date.today():
+        return show_error("The date cannot be in the future.")
+
+    chosen = join_options(tags, CONTEXT_OPTIONS)
+    text = note.strip()[:NOTE_MAX]
+    if not chosen and not text:
+        return show_error("Please tick something or write a few words.")
+
+    entry = ContextNote(
+        profile_id=profile_id,
+        note_date=noted,
+        tags=chosen,
+        note=text or None,
+    )
+    session.add(entry)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+@app.get(
+    "/p/{profile_id}/context/{context_id}/edit",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def edit_context_page(
+    profile_id: int,
+    context_id: int,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    require_cycle_access(session, profile)
+    entry = get_owned_context(context_id, profile_id, session)
+    return render_edit_context_page(request, user, profile, entry)
+
+
+@app.post("/p/{profile_id}/context/{context_id}/edit", include_in_schema=False)
+def edit_context_form(
+    profile_id: int,
+    context_id: int,
+    request: Request,
+    note_date: str = Form(...),
+    tags: List[str] = Form(default=[]),
+    note: str = Form(""),
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    require_cycle_access(session, profile)
+    entry = get_owned_context(context_id, profile_id, session)
+
+    chosen = join_options(tags, CONTEXT_OPTIONS)
+    text = note.strip()[:NOTE_MAX]
+    submitted = {
+        "note_date": note_date,
+        "tags": split_options(chosen),
+        "note": text,
+    }
+
+    def show_error(message: str):
+        return render_edit_context_page(
+            request,
+            user,
+            profile,
+            entry,
+            values=submitted,
+            error=message,
+            status_code=400,
+        )
+
+    try:
+        noted = date.fromisoformat(note_date)
+    except ValueError:
+        return show_error("Please enter a valid date.")
+    if noted > date.today():
+        return show_error("The date cannot be in the future.")
+    if not chosen and not text:
+        return show_error("Please tick something or write a few words.")
+
+    entry.note_date = noted
+    entry.tags = chosen
+    entry.note = text or None
+    session.add(entry)
+    session.commit()
+    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+
+
+@app.post("/p/{profile_id}/context/{context_id}/delete", include_in_schema=False)
+def delete_context_form(
+    profile_id: int,
+    context_id: int,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    get_owned_profile(profile_id, user, session)
+    entry = get_owned_context(context_id, profile_id, session)
     session.delete(entry)
     session.commit()
     return RedirectResponse(url=f"/p/{profile_id}", status_code=303)

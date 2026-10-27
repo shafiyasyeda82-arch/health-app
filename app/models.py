@@ -35,6 +35,28 @@ class CycleEntry(SQLModel, table=True):
     notes: Optional[str] = None
 
 
+class CycleSetting(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", unique=True, index=True)
+    tracking_active: bool = True
+
+
+class SymptomLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    log_date: date
+    symptoms: str = ""
+    notes: Optional[str] = None
+
+
+class ContextNote(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    note_date: date
+    tags: str = ""
+    note: Optional[str] = None
+
+
 class VaccineBase(SQLModel):
     vaccine_name: str
     date_taken: date

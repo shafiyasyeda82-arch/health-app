@@ -43,7 +43,50 @@
     {% endif %}
   </section>
 
+  {% if is_female and not show_cycle %}
+    <section class="card">
+      <h2>Cycle tracker</h2>
+      <p class="muted">The cycle tracker is switched off for this profile. Anything you logged before is kept.</p>
+      <form action="/p/{{ profile.id }}/cycle/tracking" method="post">
+        <input type="hidden" name="active" value="1">
+        <button type="submit">Turn on cycle tracker</button>
+      </form>
+    </section>
+  {% endif %}
+
   {% if show_cycle %}
+    {% if late_info %}
+      <section class="card notice">
+        <h2>Your period may be late</h2>
+        <p>
+          It was estimated for <strong>{{ late_info.expected.strftime('%d %b %Y') }}</strong>,
+          {{ late_info.days_late }} day{{ '' if late_info.days_late == 1 else 's' }} ago,
+          and no newer start date has been logged. If it has already started, please log it
+          below so the estimate stays accurate.
+        </p>
+        {% if late_info.factors %}
+          <p><strong>Things that may help explain it:</strong></p>
+          <ul>
+            {% for f in late_info.factors %}
+              <li>{{ f }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <p>
+          Pregnancy is one possible cause for anyone who could be pregnant. A home pregnancy
+          test or a doctor can confirm it either way.
+        </p>
+        <p>
+          Please see a doctor if your period stays late, or if you have severe pain, very
+          heavy bleeding, fainting, or feel very unwell.
+        </p>
+        <p class="muted">
+          These are general possibilities based on what you logged. They are not a diagnosis
+          or medical advice.
+        </p>
+      </section>
+    {% endif %}
+
     <section class="card">
       <h2>Cycle tracker</h2>
 
@@ -98,6 +141,111 @@
                 <a href="/p/{{ profile.id }}/cycles/{{ c.id }}/edit">Edit</a>
                 <form action="/p/{{ profile.id }}/cycles/{{ c.id }}/delete" method="post"
                       onsubmit="return confirm('Delete this entry?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <form action="/p/{{ profile.id }}/cycle/tracking" method="post" style="margin-top:16px;"
+            onsubmit="return confirm('Turn off the cycle tracker? Your logged data is kept.');">
+        <input type="hidden" name="active" value="0">
+        <button type="submit" class="secondary small">Turn off cycle tracker</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Symptom log</h2>
+      <p class="muted">
+        Track symptoms that are often linked to PCOS. This can help you notice patterns to
+        talk about with a doctor. It does not diagnose anything.
+      </p>
+      {% if symptom_error %}
+        <p class="error">{{ symptom_error }}</p>
+      {% endif %}
+      <form action="/p/{{ profile.id }}/symptoms/new" method="post">
+        <label>Date
+          <input type="date" name="log_date" value="{{ today }}" required>
+        </label>
+        <p><strong>Symptoms</strong></p>
+        <div class="checks">
+          {% for opt in symptom_options %}
+            <label>
+              <input type="checkbox" name="symptoms" value="{{ opt }}"> {{ opt }}
+            </label>
+          {% endfor %}
+        </div>
+        <label>Notes (optional)
+          <textarea name="notes" rows="2" maxlength="500"></textarea>
+        </label>
+        <button type="submit">Save symptoms</button>
+      </form>
+
+      {% if symptom_logs %}
+        <h3>Logged symptoms</h3>
+        <ul class="plain">
+          {% for s in symptom_logs %}
+            <li class="row">
+              <span>
+                <strong>{{ s.log_date.strftime('%d %b %Y') }}</strong><br>
+                {% for t in s.symptoms.split(',') if t %}<span class="tag">{{ t }}</span>{% endfor %}
+                {% if s.notes %}<br><span class="muted">{{ s.notes }}</span>{% endif %}
+              </span>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/symptoms/{{ s.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/symptoms/{{ s.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this entry?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>What's been going on?</h2>
+      <p class="muted">
+        Tick anything that applies, or just write it out in your own words. Sometimes it's
+        only while typing that you notice how you've been feeling.
+      </p>
+      {% if context_error %}
+        <p class="error">{{ context_error }}</p>
+      {% endif %}
+      <form action="/p/{{ profile.id }}/context/new" method="post">
+        <label>Date
+          <input type="date" name="note_date" value="{{ today }}" required>
+        </label>
+        <div class="checks">
+          {% for opt in context_options %}
+            <label>
+              <input type="checkbox" name="tags" value="{{ opt }}"> {{ opt }}
+            </label>
+          {% endfor %}
+        </div>
+        <label>In your own words (optional)
+          <textarea name="note" rows="3" maxlength="500"></textarea>
+        </label>
+        <button type="submit">Save note</button>
+      </form>
+
+      {% if context_notes %}
+        <h3>Your notes</h3>
+        <ul class="plain">
+          {% for n in context_notes %}
+            <li class="row">
+              <span>
+                <strong>{{ n.note_date.strftime('%d %b %Y') }}</strong><br>
+                {% for t in n.tags.split(',') if t %}<span class="tag">{{ t }}</span>{% endfor %}
+                {% if n.note %}<br><span class="muted">{{ n.note }}</span>{% endif %}
+              </span>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/context/{{ n.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/context/{{ n.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this note?');">
                   <button type="submit" class="danger small">Delete</button>
                 </form>
               </span>
