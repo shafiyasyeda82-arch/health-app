@@ -57,6 +57,12 @@ CONTEXT_OPTIONS = [
 ]
 LATE_AFTER_DAYS = 5  # show the late-period card this many days after the estimate
 NOTE_MAX = 500
+RECENT_LIMIT = 3  # how many entries each section shows before "View all"
+HISTORY_TITLES = {
+    "cycles": "Logged period dates",
+    "symptoms": "Logged symptoms",
+    "notes": "Your notes",
+}
 
 
 @asynccontextmanager
@@ -104,6 +110,18 @@ def join_options(chosen: List[str], allowed: List[str]) -> str:
 
 def split_options(text: Optional[str]) -> List[str]:
     return [part for part in (text or "").split(",") if part]
+
+
+def after_change_url(request: Request, profile_id: int) -> str:
+    """After an edit or delete: go back to the full list if that's where we came from."""
+    back = request.session.get("history_return")
+    if (
+        isinstance(back, dict)
+        and back.get("profile_id") == profile_id
+        and back.get("kind") in HISTORY_TITLES
+    ):
+        return f"/p/{profile_id}/history/{back['kind']}"
+    return f"/p/{profile_id}"
 
 
 def get_current_user_or_none(
@@ -355,6 +373,7 @@ def render_profile_page(
             .where(ContextNote.profile_id == profile.id)
             .order_by(col(ContextNote.note_date).desc(), col(ContextNote.id).desc())
         ).all()
+        # The estimate and the late notice use EVERY logged entry.
         cycle_info = build_cycle_info(cycles)
         late_info = build_late_info(profile, cycle_info, symptom_logs, context_notes)
 
@@ -368,12 +387,17 @@ def render_profile_page(
             "reminders": reminders,
             "is_female": is_female,
             "show_cycle": show_cycle,
-            "cycles": cycles,
             "cycle_info": cycle_info,
             "late_info": late_info,
-            "symptom_logs": symptom_logs,
+            # The card only shows the latest few; "View all" opens the full list.
+            "recent_limit": RECENT_LIMIT,
+            "recent_cycles": cycles[:RECENT_LIMIT],
+            "cycle_total": len(cycles),
+            "recent_symptoms": symptom_logs[:RECENT_LIMIT],
+            "symptom_total": len(symptom_logs),
+            "recent_notes": context_notes[:RECENT_LIMIT],
+            "note_total": len(context_notes),
             "symptom_options": SYMPTOM_OPTIONS,
-            "context_notes": context_notes,
             "context_options": CONTEXT_OPTIONS,
             "today": date.today().isoformat(),
             "error": error,
@@ -747,7 +771,62 @@ def profile_page(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
+    request.session.pop("history_return", None)  # back on the main page
     return render_profile_page(request, session, user, profile)
+
+
+@app.get(
+    "/p/{profile_id}/history/{kind}",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def history_page(
+    profile_id: int,
+    kind: str,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    if kind not in HISTORY_TITLES:
+        raise HTTPException(status_code=404, detail="Page not found")
+    require_cycle_access(session, profile)
+
+    # Remember where we are, so edit and delete bring us back here.
+    request.session["history_return"] = {"profile_id": profile_id, "kind": kind}
+
+    if kind == "cycles":
+        items = session.exec(
+            select(CycleEntry)
+            .where(CycleEntry.profile_id == profile_id)
+            .order_by(col(CycleEntry.start_date).desc())
+        ).all()
+    elif kind == "symptoms":
+        items = session.exec(
+            select(SymptomLog)
+            .where(SymptomLog.profile_id == profile_id)
+            .order_by(col(SymptomLog.log_date).desc(), col(SymptomLog.id).desc())
+        ).all()
+    else:
+        items = session.exec(
+            select(ContextNote)
+            .where(ContextNote.profile_id == profile_id)
+            .order_by(col(ContextNote.note_date).desc(), col(ContextNote.id).desc())
+        ).all()
+
+    return templates.TemplateResponse(
+        request,
+        "history.html",
+        {
+            "user": user,
+            "profile": profile,
+            "kind": kind,
+            "title": HISTORY_TITLES[kind],
+            "items": items,
+        },
+    )
 
 
 @app.get("/p/{profile_id}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -1112,13 +1191,14 @@ def edit_cycle_form(
     entry.notes = submitted["notes"] or None
     session.add(entry)
     session.commit()
-    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+    return RedirectResponse(url=after_change_url(request, profile_id), status_code=303)
 
 
 @app.post("/p/{profile_id}/cycles/{cycle_id}/delete", include_in_schema=False)
 def delete_cycle_form(
     profile_id: int,
     cycle_id: int,
+    request: Request,
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
@@ -1128,7 +1208,7 @@ def delete_cycle_form(
     entry = get_owned_cycle(cycle_id, profile_id, session)
     session.delete(entry)
     session.commit()
-    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+    return RedirectResponse(url=after_change_url(request, profile_id), status_code=303)
 
 
 # ---------- Web pages: symptom log ----------
@@ -1252,13 +1332,14 @@ def edit_symptom_form(
     log.notes = text or None
     session.add(log)
     session.commit()
-    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+    return RedirectResponse(url=after_change_url(request, profile_id), status_code=303)
 
 
 @app.post("/p/{profile_id}/symptoms/{symptom_id}/delete", include_in_schema=False)
 def delete_symptom_form(
     profile_id: int,
     symptom_id: int,
+    request: Request,
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
@@ -1268,7 +1349,7 @@ def delete_symptom_form(
     log = get_owned_symptom(symptom_id, profile_id, session)
     session.delete(log)
     session.commit()
-    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+    return RedirectResponse(url=after_change_url(request, profile_id), status_code=303)
 
 
 # ---------- Web pages: "What's been going on?" notes ----------
@@ -1392,13 +1473,14 @@ def edit_context_form(
     entry.note = text or None
     session.add(entry)
     session.commit()
-    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+    return RedirectResponse(url=after_change_url(request, profile_id), status_code=303)
 
 
 @app.post("/p/{profile_id}/context/{context_id}/delete", include_in_schema=False)
 def delete_context_form(
     profile_id: int,
     context_id: int,
+    request: Request,
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
@@ -1408,7 +1490,7 @@ def delete_context_form(
     entry = get_owned_context(context_id, profile_id, session)
     session.delete(entry)
     session.commit()
-    return RedirectResponse(url=f"/p/{profile_id}", status_code=303)
+    return RedirectResponse(url=after_change_url(request, profile_id), status_code=303)
 
 
 # ---------- API routes (login required, your own data only) ----------

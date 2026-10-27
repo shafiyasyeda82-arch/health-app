@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Health App{% endblock %}
+
+{% block content %}
+  <p><a href="/p/{{ profile.id }}">&larr; Back to {{ profile.name }}</a></p>
+
+  <section class="card">
+    <h2>{{ title }}</h2>
+    <p class="muted">
+      {{ items|length }} entr{{ 'y' if items|length == 1 else 'ies' }}, newest first.
+    </p>
+
+    {% if items %}
+      <ul class="plain">
+        {% if kind == "cycles" %}
+          {% for c in items %}
+            <li class="row">
+              <span>
+                <strong>{{ c.start_date.strftime('%d %b %Y') }}</strong>
+                {% if c.end_date %}to {{ c.end_date.strftime('%d %b %Y') }}{% endif %}
+                {% if c.notes %}<br><span class="muted">{{ c.notes }}</span>{% endif %}
+              </span>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/cycles/{{ c.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/cycles/{{ c.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this entry?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
+            </li>
+          {% endfor %}
+        {% elif kind == "symptoms" %}
+          {% for s in items %}
+            <li class="row">
+              <span>
+                <strong>{{ s.log_date.strftime('%d %b %Y') }}</strong><br>
+                {% for t in s.symptoms.split(',') if t %}<span class="tag">{{ t }}</span>{% endfor %}
+                {% if s.notes %}<br><span class="muted">{{ s.notes }}</span>{% endif %}
+              </span>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/symptoms/{{ s.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/symptoms/{{ s.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this entry?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
+            </li>
+          {% endfor %}
+        {% else %}
+          {% for n in items %}
+            <li class="row">
+              <span>
+                <strong>{{ n.note_date.strftime('%d %b %Y') }}</strong><br>
+                {% for t in n.tags.split(',') if t %}<span class="tag">{{ t }}</span>{% endfor %}
+                {% if n.note %}<br><span class="muted">{{ n.note }}</span>{% endif %}
+              </span>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/context/{{ n.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/context/{{ n.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this note?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
+            </li>
+          {% endfor %}
+        {% endif %}
+      </ul>
+    {% else %}
+      <p>Nothing logged yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

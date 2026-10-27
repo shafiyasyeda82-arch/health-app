@@ -238,9 +238,9 @@
               </form>
             </details>
 
-            {% if cycles %}
+            {% if recent_cycles %}
               <ul class="plain">
-                {% for c in cycles %}
+                {% for c in recent_cycles %}
                   <li class="row">
                     <span>
                       <strong>{{ c.start_date.strftime('%d %b %Y') }}</strong>
@@ -257,6 +257,11 @@
                   </li>
                 {% endfor %}
               </ul>
+              {% if cycle_total > recent_limit %}
+                <form action="/p/{{ profile.id }}/history/cycles" method="get" style="margin-top:8px;">
+                  <button type="submit" class="secondary small">View all {{ cycle_total }} logged periods</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
 
@@ -292,9 +297,9 @@
               </form>
             </details>
 
-            {% if symptom_logs %}
+            {% if recent_symptoms %}
               <ul class="plain">
-                {% for s in symptom_logs %}
+                {% for s in recent_symptoms %}
                   <li class="row">
                     <span>
                       <strong>{{ s.log_date.strftime('%d %b %Y') }}</strong><br>
@@ -311,6 +316,11 @@
                   </li>
                 {% endfor %}
               </ul>
+              {% if symptom_total > recent_limit %}
+                <form action="/p/{{ profile.id }}/history/symptoms" method="get" style="margin-top:8px;">
+                  <button type="submit" class="secondary small">View all {{ symptom_total }} symptom entries</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
 
@@ -345,9 +355,9 @@
               </form>
             </details>
 
-            {% if context_notes %}
+            {% if recent_notes %}
               <ul class="plain">
-                {% for n in context_notes %}
+                {% for n in recent_notes %}
                   <li class="row">
                     <span>
                       <strong>{{ n.note_date.strftime('%d %b %Y') }}</strong><br>
@@ -364,6 +374,11 @@
                   </li>
                 {% endfor %}
               </ul>
+              {% if note_total > recent_limit %}
+                <form action="/p/{{ profile.id }}/history/notes" method="get" style="margin-top:8px;">
+                  <button type="submit" class="secondary small">View all {{ note_total }} notes</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
 
