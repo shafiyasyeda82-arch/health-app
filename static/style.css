@@ -199,11 +199,98 @@ form textarea {
   margin: 2px 4px 2px 0;
 }
 
-.notice {
-  background: #fff9e6;
-  border-left: 4px solid #e0a800;
+/* ---------- Tabs ---------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e3ecea;
 }
 
-.notice ul {
+.tab-button {
+  background: none;
+  color: #14625d;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 10px 14px;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: -2px;
+}
+
+.tab-button:hover {
+  background: #f0f7f6;
+}
+
+.tab-button.active {
+  border-bottom-color: #1b7f79;
+  font-weight: bold;
+}
+
+/* ---------- Sections inside a card ---------- */
+
+.subsection {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.subsection h3 {
+  margin-top: 0;
+}
+
+details.fold {
+  margin: 8px 0 12px;
+}
+
+details.fold summary {
+  cursor: pointer;
+  color: #14625d;
+  font-weight: bold;
+  padding: 6px 0;
+}
+
+details.fold[open] summary {
+  margin-bottom: 10px;
+}
+
+/* ---------- Late period notice ---------- */
+
+details.late-banner {
+  background: #fff9e6;
+  border-left: 4px solid #e0a800;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+details.late-banner summary {
+  cursor: pointer;
+}
+
+.see-details {
+  color: #14625d;
+  text-decoration: underline;
+  margin-left: 8px;
+  font-size: 0.9rem;
+}
+
+details.late-banner[open] .when-closed {
+  display: none;
+}
+
+details.late-banner:not([open]) .when-open {
+  display: none;
+}
+
+.late-body {
+  margin-top: 10px;
+}
+
+.late-body ul {
   margin-top: 4px;
 }
