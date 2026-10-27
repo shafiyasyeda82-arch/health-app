@@ -7,9 +7,12 @@
     <section class="card">
       <h2>Your profiles</h2>
       {% if profiles %}
-        <ul>
+        <ul class="plain">
           {% for p in profiles %}
-            <li><a href="/p/{{ p.id }}">{{ p.name }}</a> (age {{ p.age }})</li>
+            <li class="row" style="padding:16px 0;">
+              <a href="/p/{{ p.id }}" style="min-width:0;overflow-wrap:anywhere;">{{ p.name }}</a>
+              <span class="muted" style="white-space:nowrap;">age {{ p.age }}</span>
+            </li>
           {% endfor %}
         </ul>
       {% else %}
