@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Edit reading - Health App{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="/static/readings.css">
+
+  <p><a href="/p/{{ profile.id }}/readings?type={{ reading.reading_type }}">&larr; Back to health readings</a></p>
+
+  <section class="card">
+    <h2>Edit {{ config.label|lower }} reading</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/readings/{{ reading.id }}/edit" method="post">
+      {% include "_reading_fields.html" %}
+      <button type="submit">Save changes</button>
+    </form>
+  </section>
+{% endblock %}

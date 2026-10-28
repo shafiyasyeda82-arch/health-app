@@ -16,6 +16,7 @@ from app.models import (
     ContextNote,
     CycleEntry,
     CycleSetting,
+    HealthReading,  # NEW
     Profile,
     ProfileCreate,
     SymptomLog,
@@ -24,6 +25,7 @@ from app.models import (
     VaccineRecord,
     VaccineReminder,
 )
+from app.readings import router as readings_router  # NEW
 from app.security import hash_password, verify_password
 
 load_dotenv()
@@ -80,6 +82,7 @@ app.add_middleware(
     max_age=60 * 60 * 24 * 7,
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(readings_router)  # NEW
 templates = Jinja2Templates(directory="templates")
 
 
@@ -182,7 +185,14 @@ def get_owned_context(
 
 def delete_profile_data(session: Session, profile: Profile) -> None:
     """Delete a profile and everything attached to it. The caller commits."""
-    for model in (VaccineRecord, CycleEntry, SymptomLog, ContextNote, CycleSetting):
+    for model in (
+        VaccineRecord,
+        CycleEntry,
+        SymptomLog,
+        ContextNote,
+        CycleSetting,
+        HealthReading,  # NEW
+    ):
         rows = session.exec(
             select(model).where(model.profile_id == profile.id)
         ).all()

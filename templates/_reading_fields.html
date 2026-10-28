@@ -1,0 +1,38 @@
+<label>Date
+  <input type="date" name="measured_date" value="{{ values.measured_date }}" required>
+</label>
+
+<label>Time
+  <input type="time" name="measured_time" value="{{ values.measured_time }}" required>
+</label>
+
+<label>{{ config.first_label }}
+  <input type="text" name="value1" inputmode="decimal" value="{{ values.value1 }}" required>
+</label>
+
+{% if config.two_values %}
+  <label>{{ config.second_label }}
+    <input type="text" name="value2" inputmode="decimal" value="{{ values.value2 }}" required>
+  </label>
+{% endif %}
+
+<label>Unit
+  <select name="unit" required>
+    {% for u in config.units %}
+      <option value="{{ u }}" {% if u == values.unit %}selected{% endif %}>{{ u }}</option>
+    {% endfor %}
+  </select>
+</label>
+
+<label>When was it taken? (optional)
+  <select name="context">
+    <option value="">Not specified</option>
+    {% for c in config.contexts %}
+      <option value="{{ c }}" {% if c == values.context %}selected{% endif %}>{{ c }}</option>
+    {% endfor %}
+  </select>
+</label>
+
+<label>Notes (optional)
+  <textarea name="notes" rows="2" maxlength="300">{{ values.notes }}</textarea>
+</label>

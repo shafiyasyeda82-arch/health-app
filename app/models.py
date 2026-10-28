@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Optional
 
+from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 
@@ -55,6 +56,25 @@ class ContextNote(SQLModel, table=True):
     note_date: date
     tags: str = ""
     note: Optional[str] = None
+
+
+class HealthReading(SQLModel, table=True):
+    """One recorded measurement (for example a blood pressure or glucose reading).
+
+    measured_at is plain local time exactly as the person entered it (no time zone).
+    value1 is the main number (glucose value, or systolic for blood pressure).
+    value2 is only used when a measurement has two numbers (diastolic).
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    reading_type: str = Field(index=True)
+    measured_at: NaiveDatetime
+    value1: float
+    value2: Optional[float] = None
+    unit: str
+    context: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class VaccineBase(SQLModel):

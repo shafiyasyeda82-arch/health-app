@@ -29,7 +29,7 @@
         <p>
           It was estimated for <strong>{{ late_info.expected.strftime('%d %b %Y') }}</strong>,
           and no newer start date has been logged. If it has already started, please log it
-          in the Cycle &amp; PCOS tab so the estimate stays accurate.
+          in the Cycle Tracker tab so the estimate stays accurate.
         </p>
         {% if late_info.factors %}
           <p><strong>Things that may help explain it:</strong></p>
@@ -59,8 +59,10 @@
     <button type="button" class="tab-button" role="tab" data-tab="overview">Overview</button>
     <button type="button" class="tab-button" role="tab" data-tab="vaccines">Vaccines</button>
     {% if is_female %}
-      <button type="button" class="tab-button" role="tab" data-tab="cycle">Cycle &amp; PCOS</button>
+      <button type="button" class="tab-button" role="tab" data-tab="cycle">Cycle Tracker</button>
     {% endif %}
+    <a href="/p/{{ profile.id }}/readings"
+       style="padding:10px 14px;color:#14625d;text-decoration:none;font-size:1rem;margin-bottom:-2px;border-bottom:3px solid transparent;">Health readings</a>
   </div>
 
   <!-- ================= Overview ================= -->
@@ -174,12 +176,12 @@
     </section>
   </div>
 
-  <!-- ================= Cycle & PCOS ================= -->
+  <!-- ================= Cycle Tracker ================= -->
   {% if is_female %}
     <div class="tab-panel" data-tab="cycle">
       {% if not show_cycle %}
         <section class="card">
-          <h2>Cycle &amp; PCOS</h2>
+          <h2>Cycle Tracker</h2>
           <p class="muted">The cycle tracker is switched off for this profile. Anything you logged before is kept.</p>
           <form action="/p/{{ profile.id }}/cycle/tracking" method="post">
             <input type="hidden" name="active" value="1">
@@ -188,7 +190,7 @@
         </section>
       {% else %}
         <section class="card">
-          <h2>Cycle &amp; PCOS</h2>
+          <h2>Cycle Tracker</h2>
           <p class="muted">
             Period dates, symptoms and notes in one place. This is for your own tracking and
             is not medical advice.

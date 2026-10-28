@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Health readings - {{ profile.name }} - Health App{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="/static/readings.css">
+
+  <p><a href="/p/{{ profile.id }}">&larr; Back to profile page</a></p>
+
+  <section class="card">
+    <h2>Health readings</h2>
+    <p class="muted">
+      Readings for {{ profile.name }}. This page keeps a record of the numbers you enter.
+      It does not interpret them and is not medical advice. Please talk to a doctor or
+      other qualified health professional about your readings.
+    </p>
+
+    <div class="tabs">
+      {% for t in type_tabs %}
+        <a class="tab-button{% if t.active %} active{% endif %}"
+           href="/p/{{ profile.id }}/readings?type={{ t.key }}">{{ t.label }}</a>
+      {% endfor %}
+    </div>
+
+    {% if flash %}
+      <p class="success">{{ flash }}</p>
+    {% endif %}
+
+    <h3>Add a {{ config.label|lower }} reading</h3>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/readings/new" method="post">
+      <input type="hidden" name="reading_type" value="{{ reading_type }}">
+      {% include "_reading_fields.html" %}
+      <button type="submit">Save reading</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Trend</h2>
+    {% if charts %}
+      {% for chart in charts %}
+        <div class="chart-wrap">
+          <h3>{{ config.label }} ({{ chart.unit }})</h3>
+          <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+               role="img"
+               aria-label="Line chart of {{ chart.count }} recorded {{ config.label|lower }} readings in {{ chart.unit }}">
+            {% for t in chart.y_ticks %}
+              <line class="grid" x1="{{ chart.left }}" y1="{{ t.y }}" x2="{{ chart.right }}" y2="{{ t.y }}"></line>
+              <text class="axis" x="{{ chart.left - 6 }}" y="{{ t.y + 4 }}" text-anchor="end">{{ t.label }}</text>
+            {% endfor %}
+            {% for label in chart.x_labels %}
+              <text class="axis" x="{{ label.x }}" y="{{ chart.height - 8 }}" text-anchor="{{ label.anchor }}">{{ label.text }}</text>
+            {% endfor %}
+            {% for s in chart.series %}
+              <polyline fill="none" stroke="{{ s.color }}" stroke-width="2" points="{{ s.points }}"></polyline>
+              {% for d in s.dots %}
+                <circle cx="{{ d.x }}" cy="{{ d.y }}" r="4" fill="{{ s.color }}"><title>{{ d.title }}</title></circle>
+              {% endfor %}
+            {% endfor %}
+          </svg>
+          <p class="legend">
+            {% for s in chart.series %}
+              <span class="legend-item"><span class="swatch"><svg viewBox="0 0 1 1" aria-hidden="true"><rect width="1" height="1" fill="{{ s.color }}"></rect></svg></span>{{ s.name }}</span>
+            {% endfor %}
+          </p>
+        </div>
+      {% endfor %}
+      <p class="muted">
+        Shows up to the latest {{ chart_points }} readings entered in each unit. It only
+        displays what was recorded and is not a medical conclusion.
+      </p>
+    {% elif total == 0 %}
+      <p class="muted">The chart will appear once you have saved at least two readings.</p>
+    {% else %}
+      <p class="muted">Save at least two readings in the same unit to see a trend chart.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>History</h2>
+    {% if items %}
+      <p class="muted">
+        Newest first.
+        {% if total > list_limit %}Showing the latest {{ list_limit }} of {{ total }} readings.{% else %}{{ total }} reading{{ '' if total == 1 else 's' }}.{% endif %}
+      </p>
+      <ul class="plain">
+        {% for item in items %}
+          <li class="row">
+            <span>
+              <strong>{{ item.text }}</strong><br>
+              <span class="muted">{{ item.when }}</span>
+              {% if item.context %}<span class="tag">{{ item.context }}</span>{% endif %}
+              {% if item.notes %}<br><span class="muted">{{ item.notes }}</span>{% endif %}
+            </span>
+            <span style="display:flex;gap:10px;align-items:center;">
+              <a href="/p/{{ profile.id }}/readings/{{ item.id }}/edit">Edit</a>
+              <form action="/p/{{ profile.id }}/readings/{{ item.id }}/delete" method="post"
+                    onsubmit="return confirm('Delete this reading?');">
+                <button type="submit" class="danger small">Delete</button>
+              </form>
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No {{ config.label|lower }} readings yet. Add the first one above.</p>
+    {% endif %}
+  </section>
+
+  <script>
+    (function () {
+      // Fill in today's date and the current time (in YOUR time zone) for a new reading.
+      var dateField = document.querySelector('input[name="measured_date"]');
+      var timeField = document.querySelector('input[name="measured_time"]');
+      var now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      var stamp = now.toISOString();
+      if (dateField && !dateField.value) { dateField.value = stamp.slice(0, 10); }
+      if (timeField && !timeField.value) { timeField.value = stamp.slice(11, 16); }
+    })();
+  </script>
+{% endblock %}
