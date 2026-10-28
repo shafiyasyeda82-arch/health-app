@@ -5,6 +5,15 @@ from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 
+def calculate_age(born: date, today: Optional[date] = None) -> int:
+    """Age in completed years (the international way: it goes up on the birthday)."""
+    today = today or date.today()
+    years = today.year - born.year
+    if (today.month, today.day) < (born.month, born.day):
+        years -= 1
+    return max(years, 0)
+
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
@@ -13,10 +22,11 @@ class User(SQLModel, table=True):
 
 class ProfileBase(SQLModel):
     name: str
-    age: int
+    date_of_birth: date
     gender: str
     blood_group: Optional[str] = None
     allergies: Optional[str] = None
+    height_cm: Optional[float] = None
 
 
 class ProfileCreate(ProfileBase):
@@ -26,6 +36,11 @@ class ProfileCreate(ProfileBase):
 class Profile(ProfileBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
+
+    @property
+    def age(self) -> int:
+        """Worked out from the date of birth every time, so it never goes out of date."""
+        return calculate_age(self.date_of_birth)
 
 
 class CycleEntry(SQLModel, table=True):

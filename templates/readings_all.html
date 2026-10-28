@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}All readings - {{ profile.name }} - Health App{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="/static/readings.css">
+
+  <p><a href="/p/{{ profile.id }}/readings?type={{ reading_type }}">&larr; Back to health readings</a></p>
+
+  <section class="card">
+    <h2>All {{ config.noun }} readings</h2>
+    <p class="muted">
+      {{ total }} reading{{ '' if total == 1 else 's' }}, newest first.
+    </p>
+
+    {% if flash %}
+      <p class="success">{{ flash }}</p>
+    {% endif %}
+
+    {% if items %}
+      <ul class="plain">
+        {% for item in items %}
+          <li class="row">
+            <span>
+              <strong>{{ item.text }}</strong>
+              {% if item.bmi %}<span class="tag">BMI {{ item.bmi }}</span>{% endif %}<br>
+              <span class="muted">{{ item.when }}</span>
+              {% if item.context %}<span class="tag">{{ item.context }}</span>{% endif %}
+              {% if item.notes %}<br><span class="muted">{{ item.notes }}</span>{% endif %}
+            </span>
+            <span style="display:flex;gap:10px;align-items:center;">
+              <a href="/p/{{ profile.id }}/readings/{{ item.id }}/edit">Edit</a>
+              <form action="/p/{{ profile.id }}/readings/{{ item.id }}/delete" method="post"
+                    onsubmit="return confirm('Delete this reading?');">
+                <button type="submit" class="danger small">Delete</button>
+              </form>
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No {{ config.noun }} readings yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

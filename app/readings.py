@@ -1,4 +1,4 @@
-"""Health readings tracker (blood pressure, blood glucose, ...).
+"""Health readings tracker (blood pressure, blood glucose, weight, ...).
 
 All the readings pages live here so main.py stays small. To support a new kind of
 measurement later, add one more entry to READING_TYPES below.
@@ -20,16 +20,18 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 NOTE_MAX = 300
-LIST_LIMIT = 50  # how many readings the history list shows
+RECENT_LIMIT = 4  # how many readings the main page shows before "View all"
 CHART_POINTS = 30  # how many of the latest readings the chart uses
 
 # ---------- What kinds of readings exist ----------
 # The limits below only reject numbers that are impossible or obvious typing
 # mistakes. They are NOT medical thresholds and say nothing about what is healthy.
+# "noun" is the lower-case name used inside sentences ("Add a ... reading").
 
 READING_TYPES = {
     "blood_pressure": {
         "label": "Blood pressure",
+        "noun": "blood pressure",
         "units": ["mmHg"],
         "default_unit": "mmHg",
         "two_values": True,
@@ -44,6 +46,7 @@ READING_TYPES = {
     },
     "blood_glucose": {
         "label": "Blood glucose (sugar)",
+        "noun": "blood glucose (sugar)",
         "units": ["mg/dL", "mmol/L"],
         "default_unit": "mg/dL",
         "two_values": False,
@@ -55,6 +58,72 @@ READING_TYPES = {
         "second_limits": {},
         "series_names": ["Glucose"],
         "contexts": ["Fasting", "Before a meal", "After a meal", "Bedtime", "Random"],
+    },
+    "hba1c": {
+        "label": "HbA1c",
+        "noun": "HbA1c",
+        "units": ["%", "mmol/mol"],
+        "default_unit": "%",
+        "two_values": False,
+        "first_name": "HbA1c value",
+        "second_name": "",
+        "first_label": "HbA1c value",
+        "second_label": "",
+        "first_limits": {"%": (3, 20), "mmol/mol": (9, 200)},
+        "second_limits": {},
+        "series_names": ["HbA1c"],
+        "contexts": ["Lab test", "Home test kit"],
+        "help": (
+            "HbA1c reflects your average blood glucose over roughly the last 2 to 3 "
+            "months. It is usually measured in a lab, so there will be far fewer "
+            "entries than daily glucose readings."
+        ),
+    },
+    "weight": {
+        "label": "Weight",
+        "noun": "weight",
+        "units": ["kg", "lb"],
+        "default_unit": "kg",
+        "two_values": False,
+        "first_name": "weight",
+        "second_name": "",
+        "first_label": "Weight",
+        "second_label": "",
+        "first_limits": {"kg": (2, 500), "lb": (4.4, 1100)},
+        "second_limits": {},
+        "series_names": ["Weight"],
+        "contexts": ["Morning, before eating", "Evening", "Other"],
+        "bmi": True,
+    },
+    "heart_rate": {
+        "label": "Heart rate",
+        "noun": "heart rate",
+        "units": ["bpm"],
+        "default_unit": "bpm",
+        "two_values": False,
+        "first_name": "heart rate",
+        "second_name": "",
+        "first_label": "Heart rate (beats per minute)",
+        "second_label": "",
+        "first_limits": {"bpm": (20, 300)},
+        "second_limits": {},
+        "series_names": ["Heart rate"],
+        "contexts": ["Resting", "After activity", "Other"],
+    },
+    "oxygen": {
+        "label": "Oxygen (SpO₂)",
+        "noun": "oxygen level (SpO₂)",
+        "units": ["%"],
+        "default_unit": "%",
+        "two_values": False,
+        "first_name": "oxygen saturation",
+        "second_name": "",
+        "first_label": "Oxygen saturation (SpO₂)",
+        "second_label": "",
+        "first_limits": {"%": (50, 100)},
+        "second_limits": {},
+        "series_names": ["SpO₂"],
+        "contexts": ["At rest", "After activity", "Other"],
     },
 }
 DEFAULT_TYPE = "blood_pressure"
@@ -86,6 +155,22 @@ def get_owned_reading(
     if reading is None or reading.profile_id != profile_id:
         raise HTTPException(status_code=404, detail="Reading not found")
     return reading
+
+
+def load_rows(
+    session: Session, profile_id: int, reading_type: str
+) -> List[HealthReading]:
+    """All readings of one type, newest first."""
+    return session.exec(
+        select(HealthReading)
+        .where(
+            HealthReading.profile_id == profile_id,
+            HealthReading.reading_type == reading_type,
+        )
+        .order_by(
+            col(HealthReading.measured_at).desc(), col(HealthReading.id).desc()
+        )
+    ).all()
 
 
 def match_option(value: Optional[str], options: List[str]) -> str:
@@ -126,6 +211,27 @@ def parse_number(text: Optional[str]) -> Optional[float]:
     if not math.isfinite(number):
         return None
     return number
+
+
+def compute_bmi(weight: float, unit: str, height_cm: Optional[float]) -> Optional[float]:
+    """BMI = kilograms / (metres squared). Returns None when there is no height."""
+    if not height_cm or height_cm <= 0:
+        return None
+    kilograms = weight * 0.45359237 if unit == "lb" else weight
+    metres = height_cm / 100
+    return round(kilograms / (metres * metres), 1)
+
+
+def after_change_url(request: Request, profile_id: int, reading_type: str) -> str:
+    """After an edit or delete: go back to the full list if that's where we came from."""
+    back = request.session.get("readings_return")
+    if (
+        isinstance(back, dict)
+        and back.get("profile_id") == profile_id
+        and back.get("type") == reading_type
+    ):
+        return f"/p/{profile_id}/readings/all?type={reading_type}"
+    return f"/p/{profile_id}/readings?type={reading_type}"
 
 
 def check_reading_form(
@@ -216,7 +322,9 @@ def check_reading_form(
     )
 
 
-def describe_reading(reading: HealthReading, config: dict) -> dict:
+def describe_reading(
+    reading: HealthReading, config: dict, height_cm: Optional[float]
+) -> dict:
     if config["two_values"]:
         text = (
             f"{format_number(reading.value1)}/{format_number(reading.value2)} "
@@ -224,10 +332,18 @@ def describe_reading(reading: HealthReading, config: dict) -> dict:
         )
     else:
         text = f"{format_number(reading.value1)} {reading.unit}"
+
+    bmi_text = None
+    if config.get("bmi"):
+        bmi = compute_bmi(reading.value1, reading.unit, height_cm)
+        if bmi is not None:
+            bmi_text = format_number(bmi)
+
     return {
         "id": reading.id,
         "when": reading.measured_at.strftime("%d %b %Y, %H:%M"),
         "text": text,
+        "bmi": bmi_text,
         "context": reading.context,
         "notes": reading.notes,
     }
@@ -236,16 +352,21 @@ def describe_reading(reading: HealthReading, config: dict) -> dict:
 # ---------- Chart (drawn as an SVG picture on the server, no extra libraries) ----------
 
 CHART_W = 600
-CHART_H = 240
+CHART_H = 250
 PAD_L = 48
-PAD_R = 16
+PAD_R = 20
 PAD_T = 16
-PAD_B = 32
+PAD_B = 40
 CHART_COLORS = ["#1b7f79", "#c2410c"]
+X_TICKS = 4  # how many dates are labelled along the bottom
 
 
 def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
-    """items must be oldest first and all use the same unit."""
+    """items must be oldest first and all use the same unit.
+
+    Dots are placed by the real date and time, so a long gap between two readings
+    looks like a long gap. Four dates are labelled along the bottom axis.
+    """
     columns = [[r.value1 for r in items]]
     if config["two_values"]:
         columns.append([r.value2 for r in items])
@@ -259,15 +380,20 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
     low -= margin
     high += margin
 
-    start = items[0].measured_at
-    seconds = [(r.measured_at - start).total_seconds() for r in items]
-    span = seconds[-1] if seconds[-1] > 0 else 1.0
+    first_time = items[0].measured_at
+    last_time = items[-1].measured_at
+    real_span = (last_time - first_time).total_seconds()
+    axis_seconds = real_span if real_span > 0 else 3600.0
+    pad_seconds = axis_seconds * 0.04
+    axis_start = first_time - timedelta(seconds=pad_seconds)
+    axis_total = axis_seconds + 2 * pad_seconds
 
     plot_w = CHART_W - PAD_L - PAD_R
     plot_h = CHART_H - PAD_T - PAD_B
 
-    def x_for(sec: float) -> float:
-        return round(PAD_L + (sec / span) * plot_w, 1)
+    def x_for(moment: datetime) -> float:
+        fraction = (moment - axis_start).total_seconds() / axis_total
+        return round(PAD_L + fraction * plot_w, 1)
 
     def y_for(value: float) -> float:
         return round(PAD_T + (high - value) / (high - low) * plot_h, 1)
@@ -275,10 +401,10 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
     series = []
     for index, column in enumerate(columns):
         dots = []
-        for reading, sec, value in zip(items, seconds, column):
+        for reading, value in zip(items, column):
             dots.append(
                 {
-                    "x": x_for(sec),
+                    "x": x_for(reading.measured_at),
                     "y": y_for(value),
                     "title": (
                         f"{reading.measured_at.strftime('%d %b %Y, %H:%M')}: "
@@ -300,14 +426,13 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
         value = low + (high - low) * step / 3
         y_ticks.append({"y": y_for(value), "label": format_number(round(value, 1))})
 
-    x_labels = [
-        {"x": PAD_L, "anchor": "start", "text": items[0].measured_at.strftime("%d %b")},
-        {
-            "x": CHART_W - PAD_R,
-            "anchor": "end",
-            "text": items[-1].measured_at.strftime("%d %b"),
-        },
-    ]
+    # When everything happened within a few days, include the time so labels differ.
+    show_time = real_span < 5 * 86400
+    x_ticks = []
+    for step in range(X_TICKS):
+        moment = first_time + timedelta(seconds=axis_seconds * step / (X_TICKS - 1))
+        label = moment.strftime("%d %b %H:%M") if show_time else moment.strftime("%d %b")
+        x_ticks.append({"x": x_for(moment), "label": label})
 
     return {
         "unit": unit,
@@ -315,9 +440,11 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
         "height": CHART_H,
         "left": PAD_L,
         "right": CHART_W - PAD_R,
+        "top": PAD_T,
+        "bottom": CHART_H - PAD_B,
         "series": series,
         "y_ticks": y_ticks,
-        "x_labels": x_labels,
+        "x_ticks": x_ticks,
         "count": len(items),
     }
 
@@ -336,20 +463,12 @@ def render_readings_page(
     status_code: int = 200,
 ):
     config = READING_TYPES[reading_type]
-
-    rows = session.exec(
-        select(HealthReading)
-        .where(
-            HealthReading.profile_id == profile.id,
-            HealthReading.reading_type == reading_type,
-        )
-        .order_by(
-            col(HealthReading.measured_at).desc(), col(HealthReading.id).desc()
-        )
-    ).all()
+    rows = load_rows(session, profile.id, reading_type)  # newest first
 
     total = len(rows)
-    items = [describe_reading(r, config) for r in rows[:LIST_LIMIT]]
+    items = [
+        describe_reading(r, config, profile.height_cm) for r in rows[:RECENT_LIMIT]
+    ]
 
     oldest_first = list(reversed(rows))
     charts = []
@@ -357,6 +476,17 @@ def render_readings_page(
         in_unit = [r for r in oldest_first if r.unit == unit][-CHART_POINTS:]
         if len(in_unit) >= 2:
             charts.append(build_chart(unit, in_unit, config))
+
+    bmi_info = None
+    if config.get("bmi"):
+        latest_bmi = None
+        if rows:
+            latest_bmi = compute_bmi(rows[0].value1, rows[0].unit, profile.height_cm)
+        bmi_info = {
+            "height_cm": format_number(profile.height_cm) if profile.height_cm else None,
+            "latest_bmi": format_number(latest_bmi) if latest_bmi is not None else None,
+            "young": profile.age < 20,
+        }
 
     if values is None:
         values = {
@@ -386,13 +516,39 @@ def render_readings_page(
             "values": values,
             "items": items,
             "total": total,
-            "list_limit": LIST_LIMIT,
+            "recent_limit": RECENT_LIMIT,
             "charts": charts,
             "chart_points": CHART_POINTS,
+            "bmi_info": bmi_info,
             "flash": request.session.pop("flash", None),
             "error": error,
         },
         status_code=status_code,
+    )
+
+
+def render_all_readings_page(
+    request: Request,
+    session: Session,
+    user: User,
+    profile: Profile,
+    reading_type: str,
+):
+    config = READING_TYPES[reading_type]
+    rows = load_rows(session, profile.id, reading_type)
+    items = [describe_reading(r, config, profile.height_cm) for r in rows]
+    return templates.TemplateResponse(
+        request,
+        "readings_all.html",
+        {
+            "user": user,
+            "profile": profile,
+            "reading_type": reading_type,
+            "config": config,
+            "items": items,
+            "total": len(items),
+            "flash": request.session.pop("flash", None),
+        },
     )
 
 
@@ -447,7 +603,32 @@ def readings_page(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
+    request.session.pop("readings_return", None)  # back on the main readings page
     return render_readings_page(request, session, user, profile, pick_type(type))
+
+
+@router.get(
+    "/p/{profile_id}/readings/all",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def readings_all_page(
+    profile_id: int,
+    request: Request,
+    type: Optional[str] = None,
+    user: Optional[User] = Depends(get_current_user_or_none),
+    session: Session = Depends(get_session),
+):
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    profile = get_owned_profile(profile_id, user, session)
+    reading_type = pick_type(type)
+    # Remember where we are, so edit and delete bring us back to this full list.
+    request.session["readings_return"] = {
+        "profile_id": profile_id,
+        "type": reading_type,
+    }
+    return render_all_readings_page(request, session, user, profile, reading_type)
 
 
 @router.post("/p/{profile_id}/readings/new", include_in_schema=False)
@@ -592,7 +773,8 @@ def edit_reading_form(
     session.commit()
     request.session["flash"] = "Reading updated."
     return RedirectResponse(
-        url=f"/p/{profile_id}/readings?type={reading.reading_type}", status_code=303
+        url=after_change_url(request, profile_id, reading.reading_type),
+        status_code=303,
     )
 
 
@@ -613,5 +795,5 @@ def delete_reading_form(
     session.commit()
     request.session["flash"] = "Reading deleted."
     return RedirectResponse(
-        url=f"/p/{profile_id}/readings?type={reading_type}", status_code=303
+        url=after_change_url(request, profile_id, reading_type), status_code=303
     )

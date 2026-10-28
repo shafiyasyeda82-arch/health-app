@@ -14,9 +14,12 @@
       <label>Name
         <input type="text" name="name" value="{{ values.name }}" required>
       </label>
-      <label>Age
-        <input type="number" name="age" min="0" max="120" value="{{ values.age }}" required>
+      <label>Date of birth
+        <input type="date" name="date_of_birth" max="{{ today }}" value="{{ values.date_of_birth }}" required>
       </label>
+      <p class="muted" style="margin-top:-4px;">
+        Age is worked out from the date of birth and updates by itself on each birthday.
+      </p>
       <label>Gender
         <select name="gender" required
                 style="display:block;width:100%;padding:8px;margin-top:4px;box-sizing:border-box;">
@@ -34,6 +37,9 @@
             <option value="{{ b }}" {% if b == values.blood_group %}selected{% endif %}>{{ b }}</option>
           {% endfor %}
         </select>
+      </label>
+      <label>Height in cm (optional, used for BMI)
+        <input type="text" name="height_cm" inputmode="decimal" value="{{ values.height_cm }}">
       </label>
       <label>Allergies (optional)
         <input type="text" name="allergies" value="{{ values.allergies }}">

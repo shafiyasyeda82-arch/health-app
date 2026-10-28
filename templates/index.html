@@ -22,33 +22,42 @@
 
     <section class="card">
       <h2>Add a profile</h2>
+      {% if error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
       <form action="/profiles/new" method="post">
         <label>Name
-          <input type="text" name="name" required>
+          <input type="text" name="name" value="{{ values.name }}" required>
         </label>
-        <label>Age
-          <input type="number" name="age" min="0" required>
+        <label>Date of birth
+          <input type="date" name="date_of_birth" max="{{ today }}" value="{{ values.date_of_birth }}" required>
         </label>
+        <p class="muted" style="margin-top:-4px;">
+          You can type the date. Age is worked out from it and updates by itself.
+        </p>
         <label>Gender
           <select name="gender" required
                   style="display:block;width:100%;padding:8px;margin-top:4px;box-sizing:border-box;">
-            <option value="" disabled selected>Choose one</option>
+            <option value="" disabled {% if not values.gender %}selected{% endif %}>Choose one</option>
             {% for g in gender_options %}
-              <option value="{{ g }}">{{ g }}</option>
+              <option value="{{ g }}" {% if g == values.gender %}selected{% endif %}>{{ g }}</option>
             {% endfor %}
           </select>
         </label>
         <label>Blood type
           <select name="blood_group" required
                   style="display:block;width:100%;padding:8px;margin-top:4px;box-sizing:border-box;">
-            <option value="" disabled selected>Choose one</option>
+            <option value="" disabled {% if not values.blood_group %}selected{% endif %}>Choose one</option>
             {% for b in blood_group_options %}
-              <option value="{{ b }}">{{ b }}</option>
+              <option value="{{ b }}" {% if b == values.blood_group %}selected{% endif %}>{{ b }}</option>
             {% endfor %}
           </select>
         </label>
+        <label>Height in cm (optional, used for BMI)
+          <input type="text" name="height_cm" inputmode="decimal" value="{{ values.height_cm }}">
+        </label>
         <label>Allergies (optional)
-          <input type="text" name="allergies">
+          <input type="text" name="allergies" value="{{ values.allergies }}">
         </label>
         <button type="submit">Save profile</button>
       </form>

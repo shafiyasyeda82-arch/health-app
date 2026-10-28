@@ -1,3 +1,4 @@
+import math
 import os
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
@@ -16,7 +17,7 @@ from app.models import (
     ContextNote,
     CycleEntry,
     CycleSetting,
-    HealthReading,  # NEW
+    HealthReading,
     Profile,
     ProfileCreate,
     SymptomLog,
@@ -24,8 +25,9 @@ from app.models import (
     VaccineCreate,
     VaccineRecord,
     VaccineReminder,
+    calculate_age,
 )
-from app.readings import router as readings_router  # NEW
+from app.readings import router as readings_router
 from app.security import hash_password, verify_password
 
 load_dotenv()
@@ -60,6 +62,9 @@ CONTEXT_OPTIONS = [
 LATE_AFTER_DAYS = 5  # show the late-period card this many days after the estimate
 NOTE_MAX = 500
 RECENT_LIMIT = 3  # how many entries each section shows before "View all"
+HEIGHT_MIN = 40.0  # cm; only rejects impossible typing mistakes
+HEIGHT_MAX = 250.0
+MAX_AGE = 120
 HISTORY_TITLES = {
     "cycles": "Logged period dates",
     "symptoms": "Logged symptoms",
@@ -82,7 +87,7 @@ app.add_middleware(
     max_age=60 * 60 * 24 * 7,
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.include_router(readings_router)  # NEW
+app.include_router(readings_router)
 templates = Jinja2Templates(directory="templates")
 
 
@@ -113,6 +118,58 @@ def join_options(chosen: List[str], allowed: List[str]) -> str:
 
 def split_options(text: Optional[str]) -> List[str]:
     return [part for part in (text or "").split(",") if part]
+
+
+def check_profile_form(
+    name: str,
+    dob_text: str,
+    gender: str,
+    blood_group: str,
+    height_text: str,
+):
+    """Check the profile form. Returns (clean_values, None) or (None, error_message)."""
+    name = tidy_name(name or "")
+    if not name:
+        return None, "Please enter a name."
+
+    try:
+        born = date.fromisoformat((dob_text or "").strip())
+    except ValueError:
+        return None, "Please enter a valid date of birth."
+    today = date.today()
+    if born > today:
+        return None, "The date of birth cannot be in the future."
+    if calculate_age(born, today) > MAX_AGE:
+        return None, "Please check the date of birth (that would be over 120 years old)."
+
+    if gender not in GENDER_OPTIONS:
+        return None, "Please choose a gender from the list."
+    if blood_group not in BLOOD_GROUP_OPTIONS:
+        return None, "Please choose a blood type from the list."
+
+    height = None
+    cleaned = (height_text or "").strip().replace(",", ".")
+    if cleaned:
+        try:
+            height = float(cleaned)
+        except ValueError:
+            return None, "Please enter the height as a number in centimetres."
+        if not math.isfinite(height) or not HEIGHT_MIN <= height <= HEIGHT_MAX:
+            return None, (
+                f"Height must be between {HEIGHT_MIN:g} and {HEIGHT_MAX:g} cm."
+            )
+        height = round(height, 1)
+
+    return (
+        {
+            "name": name,
+            "date_of_birth": born,
+            "gender": gender,
+            "blood_group": blood_group,
+            "height_cm": height,
+        },
+        None,
+    )
 
 
 def after_change_url(request: Request, profile_id: int) -> str:
@@ -191,7 +248,7 @@ def delete_profile_data(session: Session, profile: Profile) -> None:
         SymptomLog,
         ContextNote,
         CycleSetting,
-        HealthReading,  # NEW
+        HealthReading,
     ):
         rows = session.exec(
             select(model).where(model.profile_id == profile.id)
@@ -342,6 +399,44 @@ def build_reminders(
     return reminders
 
 
+def render_home_page(
+    request: Request,
+    session: Session,
+    user: Optional[User],
+    values: Optional[dict] = None,
+    error: Optional[str] = None,
+    status_code: int = 200,
+):
+    profiles = []
+    if user is not None:
+        profiles = session.exec(
+            select(Profile).where(Profile.user_id == user.id)
+        ).all()
+    if values is None:
+        values = {
+            "name": "",
+            "date_of_birth": "",
+            "gender": "",
+            "blood_group": "",
+            "allergies": "",
+            "height_cm": "",
+        }
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "user": user,
+            "profiles": profiles,
+            "gender_options": GENDER_OPTIONS,
+            "blood_group_options": BLOOD_GROUP_OPTIONS,
+            "values": values,
+            "error": error,
+            "today": date.today().isoformat(),
+        },
+        status_code=status_code,
+    )
+
+
 def render_profile_page(
     request: Request,
     session: Session,
@@ -430,10 +525,11 @@ def render_edit_page(
     if values is None:
         values = {
             "name": profile.name,
-            "age": profile.age,
+            "date_of_birth": profile.date_of_birth.isoformat(),
             "gender": match_option(profile.gender, GENDER_OPTIONS),
             "blood_group": match_option(profile.blood_group, BLOOD_GROUP_OPTIONS),
             "allergies": profile.allergies or "",
+            "height_cm": "" if profile.height_cm is None else f"{profile.height_cm:g}",
         }
     return templates.TemplateResponse(
         request,
@@ -444,6 +540,7 @@ def render_edit_page(
             "values": values,
             "gender_options": GENDER_OPTIONS,
             "blood_group_options": BLOOD_GROUP_OPTIONS,
+            "today": date.today().isoformat(),
             "error": error,
         },
         status_code=status_code,
@@ -594,21 +691,7 @@ def home_page(
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
-    profiles = []
-    if user is not None:
-        profiles = session.exec(
-            select(Profile).where(Profile.user_id == user.id)
-        ).all()
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "user": user,
-            "profiles": profiles,
-            "gender_options": GENDER_OPTIONS,
-            "blood_group_options": BLOOD_GROUP_OPTIONS,
-        },
-    )
+    return render_home_page(request, session, user)
 
 
 @app.get("/signup", response_class=HTMLResponse, include_in_schema=False)
@@ -739,30 +822,37 @@ def delete_account_form(
 
 @app.post("/profiles/new", include_in_schema=False)
 def create_profile_form(
-    name: str = Form(...),
-    age: int = Form(...),
-    gender: str = Form(...),
-    blood_group: str = Form(...),
+    request: Request,
+    name: str = Form(""),
+    date_of_birth: str = Form(""),
+    gender: str = Form(""),
+    blood_group: str = Form(""),
     allergies: str = Form(""),
+    height_cm: str = Form(""),
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    name = tidy_name(name)
-    if not name:
-        raise HTTPException(status_code=400, detail="Please enter a name.")
-    if blood_group not in BLOOD_GROUP_OPTIONS:
-        raise HTTPException(status_code=400, detail="Please choose a valid blood type.")
-    if gender not in GENDER_OPTIONS:
-        gender = "Prefer not to say"
+    clean, error = check_profile_form(
+        name, date_of_birth, gender, blood_group, height_cm
+    )
+    if error:
+        submitted = {
+            "name": name.strip(),
+            "date_of_birth": date_of_birth,
+            "gender": gender,
+            "blood_group": blood_group,
+            "allergies": allergies.strip(),
+            "height_cm": height_cm.strip(),
+        }
+        return render_home_page(
+            request, session, user, values=submitted, error=error, status_code=400
+        )
 
     profile = Profile(
-        name=name,
-        age=age,
-        gender=gender,
-        blood_group=blood_group,
+        **clean,
         allergies=allergies.strip() or None,
         user_id=user.id,
     )
@@ -856,11 +946,12 @@ def edit_profile_page(
 def edit_profile_form(
     profile_id: int,
     request: Request,
-    name: str = Form(...),
-    age: int = Form(...),
-    gender: str = Form(...),
-    blood_group: str = Form(...),
+    name: str = Form(""),
+    date_of_birth: str = Form(""),
+    gender: str = Form(""),
+    blood_group: str = Form(""),
     allergies: str = Form(""),
+    height_cm: str = Form(""),
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
@@ -868,34 +959,27 @@ def edit_profile_form(
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
 
-    name = tidy_name(name)
-    submitted = {
-        "name": name,
-        "age": age,
-        "gender": match_option(gender, GENDER_OPTIONS),
-        "blood_group": match_option(blood_group, BLOOD_GROUP_OPTIONS),
-        "allergies": allergies.strip(),
-    }
-
-    error = None
-    if not name:
-        error = "Please enter a name."
-    elif age < 0 or age > 120:
-        error = "Age must be between 0 and 120."
-    elif gender not in GENDER_OPTIONS:
-        error = "Please choose a gender from the list."
-    elif blood_group not in BLOOD_GROUP_OPTIONS:
-        error = "Please choose a blood type from the list."
-
+    clean, error = check_profile_form(
+        name, date_of_birth, gender, blood_group, height_cm
+    )
     if error:
+        submitted = {
+            "name": tidy_name(name),
+            "date_of_birth": date_of_birth,
+            "gender": match_option(gender, GENDER_OPTIONS),
+            "blood_group": match_option(blood_group, BLOOD_GROUP_OPTIONS),
+            "allergies": allergies.strip(),
+            "height_cm": height_cm.strip(),
+        }
         return render_edit_page(
             request, user, profile, values=submitted, error=error, status_code=400
         )
 
-    profile.name = name
-    profile.age = age
-    profile.gender = gender
-    profile.blood_group = blood_group
+    profile.name = clean["name"]
+    profile.date_of_birth = clean["date_of_birth"]
+    profile.gender = clean["gender"]
+    profile.blood_group = clean["blood_group"]
+    profile.height_cm = clean["height_cm"]
     profile.allergies = allergies.strip() or None
     session.add(profile)
     session.commit()
@@ -1514,6 +1598,9 @@ def create_profile(
 ):
     values = data.model_dump()
     values["name"] = tidy_name(values["name"])
+    born = values["date_of_birth"]
+    if born > date.today() or calculate_age(born) > MAX_AGE:
+        raise HTTPException(status_code=400, detail="Please check the date of birth.")
     profile = Profile(**values, user_id=user.id)
     session.add(profile)
     session.commit()

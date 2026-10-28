@@ -26,7 +26,32 @@
       <p class="success">{{ flash }}</p>
     {% endif %}
 
-    <h3>Add a {{ config.label|lower }} reading</h3>
+    {% if config.help %}
+      <p class="muted">{{ config.help }}</p>
+    {% endif %}
+
+    {% if bmi_info %}
+      {% if bmi_info.height_cm %}
+        <p>
+          Height on the profile: <strong>{{ bmi_info.height_cm }} cm</strong>
+          {% if bmi_info.latest_bmi %}&middot; BMI from the latest reading: <strong>{{ bmi_info.latest_bmi }}</strong>{% endif %}
+        </p>
+      {% else %}
+        <p class="muted">
+          Add a height on the <a href="/p/{{ profile.id }}/edit">Edit profile</a> page to see BMI.
+        </p>
+      {% endif %}
+      <p class="muted">
+        BMI is a screening number worked out from weight and height. It is not a diagnosis,
+        and it does not measure body fat or overall health.
+        {% if bmi_info.young %}
+          For children and teenagers (up to 19), BMI is read on growth charts that depend
+          on age and sex, so please ask a doctor how to interpret it.
+        {% endif %}
+      </p>
+    {% endif %}
+
+    <h3>Add a {{ config.noun }} reading</h3>
     {% if error %}
       <p class="error">{{ error }}</p>
     {% endif %}
@@ -45,13 +70,14 @@
           <h3>{{ config.label }} ({{ chart.unit }})</h3>
           <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
                role="img"
-               aria-label="Line chart of {{ chart.count }} recorded {{ config.label|lower }} readings in {{ chart.unit }}">
+               aria-label="Line chart of {{ chart.count }} recorded {{ config.noun }} readings in {{ chart.unit }}, by date">
             {% for t in chart.y_ticks %}
               <line class="grid" x1="{{ chart.left }}" y1="{{ t.y }}" x2="{{ chart.right }}" y2="{{ t.y }}"></line>
               <text class="axis" x="{{ chart.left - 6 }}" y="{{ t.y + 4 }}" text-anchor="end">{{ t.label }}</text>
             {% endfor %}
-            {% for label in chart.x_labels %}
-              <text class="axis" x="{{ label.x }}" y="{{ chart.height - 8 }}" text-anchor="{{ label.anchor }}">{{ label.text }}</text>
+            {% for t in chart.x_ticks %}
+              <line class="grid" x1="{{ t.x }}" y1="{{ chart.top }}" x2="{{ t.x }}" y2="{{ chart.bottom }}"></line>
+              <text class="axis" x="{{ t.x }}" y="{{ chart.height - 12 }}" text-anchor="middle">{{ t.label }}</text>
             {% endfor %}
             {% for s in chart.series %}
               <polyline fill="none" stroke="{{ s.color }}" stroke-width="2" points="{{ s.points }}"></polyline>
@@ -68,8 +94,9 @@
         </div>
       {% endfor %}
       <p class="muted">
-        Shows up to the latest {{ chart_points }} readings entered in each unit. It only
-        displays what was recorded and is not a medical conclusion.
+        Dots are placed by the date and time of each reading, using up to the latest
+        {{ chart_points }} readings in each unit. Hover over a dot to see its exact date.
+        The chart only displays what was recorded and is not a medical conclusion.
       </p>
     {% elif total == 0 %}
       <p class="muted">The chart will appear once you have saved at least two readings.</p>
@@ -79,17 +106,21 @@
   </section>
 
   <section class="card">
-    <h2>History</h2>
+    <h2>Recent readings</h2>
     {% if items %}
       <p class="muted">
-        Newest first.
-        {% if total > list_limit %}Showing the latest {{ list_limit }} of {{ total }} readings.{% else %}{{ total }} reading{{ '' if total == 1 else 's' }}.{% endif %}
+        {% if total > recent_limit %}
+          Showing the newest {{ items|length }} of {{ total }} readings.
+        {% else %}
+          {{ total }} reading{{ '' if total == 1 else 's' }}, newest first.
+        {% endif %}
       </p>
       <ul class="plain">
         {% for item in items %}
           <li class="row">
             <span>
-              <strong>{{ item.text }}</strong><br>
+              <strong>{{ item.text }}</strong>
+              {% if item.bmi %}<span class="tag">BMI {{ item.bmi }}</span>{% endif %}<br>
               <span class="muted">{{ item.when }}</span>
               {% if item.context %}<span class="tag">{{ item.context }}</span>{% endif %}
               {% if item.notes %}<br><span class="muted">{{ item.notes }}</span>{% endif %}
@@ -104,8 +135,14 @@
           </li>
         {% endfor %}
       </ul>
+      {% if total > recent_limit %}
+        <form action="/p/{{ profile.id }}/readings/all" method="get" style="margin-top:8px;">
+          <input type="hidden" name="type" value="{{ reading_type }}">
+          <button type="submit" class="secondary small">View all {{ total }} readings</button>
+        </form>
+      {% endif %}
     {% else %}
-      <p>No {{ config.label|lower }} readings yet. Add the first one above.</p>
+      <p>No {{ config.noun }} readings yet. Add the first one above.</p>
     {% endif %}
   </section>
 
