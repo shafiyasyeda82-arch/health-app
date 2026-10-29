@@ -129,6 +129,100 @@ READING_TYPES = {
 DEFAULT_TYPE = "blood_pressure"
 
 
+# ---------- Unit conversion (used only for drawing charts) ----------
+# Saved readings are never changed. When a chart mixes units, each value is converted
+# into the unit used most often. The conversions are standard but approximate.
+# For each type, to_base turns a value into one common unit and from_base turns it
+# into any unit we need.
+
+GLUCOSE_MG_PER_MMOL = 18.016
+KG_PER_LB = 0.45359237
+
+CONVERSIONS = {
+    "blood_glucose": {
+        "to_base": {
+            "mg/dL": lambda v: v,
+            "mmol/L": lambda v: v * GLUCOSE_MG_PER_MMOL,
+        },
+        "from_base": {
+            "mg/dL": lambda v: v,
+            "mmol/L": lambda v: v / GLUCOSE_MG_PER_MMOL,
+        },
+    },
+    "hba1c": {
+        # NGSP (%) and IFCC (mmol/mol) HbA1c units
+        "to_base": {
+            "%": lambda v: v,
+            "mmol/mol": lambda v: 0.09148 * v + 2.152,
+        },
+        "from_base": {
+            "%": lambda v: v,
+            "mmol/mol": lambda v: 10.929 * (v - 2.15),
+        },
+    },
+    "weight": {
+        "to_base": {
+            "kg": lambda v: v,
+            "lb": lambda v: v * KG_PER_LB,
+        },
+        "from_base": {
+            "kg": lambda v: v,
+            "lb": lambda v: v / KG_PER_LB,
+        },
+    },
+}
+
+
+def convert_value(
+    reading_type: str, value: Optional[float], from_unit: str, to_unit: str
+) -> Optional[float]:
+    """Convert a value between units. Returns None if it cannot be converted."""
+    if value is None or from_unit == to_unit:
+        return value
+    table = CONVERSIONS.get(reading_type)
+    if (
+        not table
+        or from_unit not in table["to_base"]
+        or to_unit not in table["from_base"]
+    ):
+        return None
+    return table["from_base"][to_unit](table["to_base"][from_unit](value))
+
+
+def most_used_unit(rows: List[HealthReading], config: dict) -> str:
+    """The unit used by the most readings (the default unit wins a tie)."""
+    counts = {unit: 0 for unit in config["units"]}
+    for row in rows:
+        if row.unit in counts:
+            counts[row.unit] += 1
+    best = max(counts.values())
+    candidates = [unit for unit in config["units"] if counts[unit] == best]
+    if config["default_unit"] in candidates:
+        return config["default_unit"]
+    return candidates[0]
+
+
+def chart_points(
+    rows_oldest_first: List[HealthReading], reading_type: str, unit: str
+) -> List[dict]:
+    """Every reading expressed in one unit, ready for the chart."""
+    points = []
+    for row in rows_oldest_first:
+        first = convert_value(reading_type, row.value1, row.unit, unit)
+        second = convert_value(reading_type, row.value2, row.unit, unit)
+        if first is None:
+            continue
+        points.append(
+            {
+                "reading": row,
+                "v1": first,
+                "v2": second,
+                "converted": row.unit != unit,
+            }
+        )
+    return points
+
+
 # ---------- Small helpers ----------
 
 
@@ -217,7 +311,7 @@ def compute_bmi(weight: float, unit: str, height_cm: Optional[float]) -> Optiona
     """BMI = kilograms / (metres squared). Returns None when there is no height."""
     if not height_cm or height_cm <= 0:
         return None
-    kilograms = weight * 0.45359237 if unit == "lb" else weight
+    kilograms = weight * KG_PER_LB if unit == "lb" else weight
     metres = height_cm / 100
     return round(kilograms / (metres * metres), 1)
 
@@ -465,15 +559,16 @@ CHART_COLORS = ["#1b7f79", "#c2410c"]
 X_TICKS = 4  # how many dates are labelled along the bottom
 
 
-def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
-    """items must be oldest first and all use the same unit.
+def build_chart(unit: str, points: List[dict], config: dict) -> dict:
+    """points come from chart_points(): oldest first, all expressed in `unit`.
 
     Dots are placed by the real date and time, so a long gap between two readings
-    looks like a long gap. Four dates are labelled along the bottom axis.
+    looks like a long gap. Readings that were converted from another unit are drawn
+    as hollow dots. Four dates are labelled along the bottom axis.
     """
-    columns = [[r.value1 for r in items]]
+    columns = [[p["v1"] for p in points]]
     if config["two_values"]:
-        columns.append([r.value2 for r in items])
+        columns.append([p["v2"] for p in points])
 
     everything = [v for column in columns for v in column if v is not None]
     low, high = min(everything), max(everything)
@@ -484,8 +579,8 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
     low -= margin
     high += margin
 
-    first_time = items[0].measured_at
-    last_time = items[-1].measured_at
+    first_time = points[0]["reading"].measured_at
+    last_time = points[-1]["reading"].measured_at
     real_span = (last_time - first_time).total_seconds()
     axis_seconds = real_span if real_span > 0 else 3600.0
     pad_seconds = axis_seconds * 0.04
@@ -505,15 +600,22 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
     series = []
     for index, column in enumerate(columns):
         dots = []
-        for reading, value in zip(items, column):
+        for point, value in zip(points, column):
+            reading = point["reading"]
+            title = (
+                f"{reading.measured_at.strftime('%d %b %Y, %H:%M')}: "
+                f"{format_number(round(value, 2))} {unit}"
+            )
+            if point["converted"]:
+                title += (
+                    f" (converted from {format_number(reading.value1)} {reading.unit})"
+                )
             dots.append(
                 {
                     "x": x_for(reading.measured_at),
                     "y": y_for(value),
-                    "title": (
-                        f"{reading.measured_at.strftime('%d %b %Y, %H:%M')}: "
-                        f"{format_number(value)} {unit}"
-                    ),
+                    "title": title,
+                    "converted": point["converted"],
                 }
             )
         series.append(
@@ -538,6 +640,17 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
         label = moment.strftime("%d %b %H:%M") if show_time else moment.strftime("%d %b")
         x_ticks.append({"x": x_for(moment), "label": label})
 
+    converted_count = sum(1 for p in points if p["converted"])
+    note = None
+    if converted_count:
+        many = converted_count != 1
+        note = (
+            f"{converted_count} reading{'s' if many else ''} saved in another unit "
+            f"{'were' if many else 'was'} converted to {unit} for this chart "
+            "(hollow dots). Conversions are approximate, and your saved entries keep "
+            "the unit you typed."
+        )
+
     return {
         "unit": unit,
         "width": CHART_W,
@@ -549,7 +662,8 @@ def build_chart(unit: str, items: List[HealthReading], config: dict) -> dict:
         "series": series,
         "y_ticks": y_ticks,
         "x_ticks": x_ticks,
-        "count": len(items),
+        "count": len(points),
+        "note": note,
     }
 
 
@@ -574,12 +688,15 @@ def render_readings_page(
         describe_reading(r, config, profile.height_cm) for r in rows[:RECENT_LIMIT]
     ]
 
-    oldest_first = list(reversed(rows))
+    # One chart per reading type. Readings saved in other units are converted into
+    # the unit used most often, so every reading can appear on the chart.
     charts = []
-    for unit in config["units"]:
-        in_unit = [r for r in oldest_first if r.unit == unit][-CHART_POINTS:]
-        if len(in_unit) >= 2:
-            charts.append(build_chart(unit, in_unit, config))
+    if total >= 2:
+        chart_unit = most_used_unit(rows, config)
+        latest_oldest_first = list(reversed(rows[:CHART_POINTS]))
+        points = chart_points(latest_oldest_first, reading_type, chart_unit)
+        if len(points) >= 2:
+            charts.append(build_chart(chart_unit, points, config))
 
     bmi_info = None
     bmi_chart = None

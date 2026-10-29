@@ -135,7 +135,9 @@
             {% for s in chart.series %}
               <polyline fill="none" stroke="{{ s.color }}" stroke-width="2" points="{{ s.points }}"></polyline>
               {% for d in s.dots %}
-                <circle cx="{{ d.x }}" cy="{{ d.y }}" r="4" fill="{{ s.color }}"><title>{{ d.title }}</title></circle>
+                <circle cx="{{ d.x }}" cy="{{ d.y }}" r="4.5"
+                        fill="{{ 'white' if d.converted else s.color }}"
+                        stroke="{{ s.color }}" stroke-width="2"><title>{{ d.title }}</title></circle>
               {% endfor %}
             {% endfor %}
           </svg>
@@ -144,17 +146,20 @@
               <span class="legend-item"><span class="swatch"><svg viewBox="0 0 1 1" aria-hidden="true"><rect width="1" height="1" fill="{{ s.color }}"></rect></svg></span>{{ s.name }}</span>
             {% endfor %}
           </p>
+          {% if chart.note %}
+            <p class="muted">{{ chart.note }}</p>
+          {% endif %}
         </div>
       {% endfor %}
       <p class="muted">
         Dots are placed by the date and time of each reading, using up to the latest
-        {{ chart_points }} readings in each unit. Hover over a dot to see its exact date.
-        The chart only displays what was recorded and is not a medical conclusion.
+        {{ chart_points }} readings. Hover over a dot to see its exact date. The chart
+        only displays what was recorded and is not a medical conclusion.
       </p>
     {% elif total == 0 %}
       <p class="muted">The chart will appear once you have saved at least two readings.</p>
     {% else %}
-      <p class="muted">Save at least two readings in the same unit to see a trend chart.</p>
+      <p class="muted">Save at least two readings to see a trend chart.</p>
     {% endif %}
   </section>
 
