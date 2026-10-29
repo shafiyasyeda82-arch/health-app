@@ -113,9 +113,18 @@
 
     <section class="card">
       <h2>Delete this profile</h2>
-      <p class="muted">This permanently removes the profile and all of its records.</p>
+      <p class="muted">
+        This permanently removes the profile and all of its records. Enter your account
+        password to confirm.
+      </p>
+      {% if delete_error %}
+        <p class="error">{{ delete_error }}</p>
+      {% endif %}
       <form action="/p/{{ profile.id }}/delete" method="post"
             onsubmit="return confirm('Delete this profile and all its records? This cannot be undone.');">
+        <label>Account password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
         <button type="submit" class="danger">Delete profile</button>
       </form>
     </section>
@@ -391,6 +400,102 @@
               <button type="submit" class="secondary small">Turn off cycle tracker</button>
             </form>
           </div>
+        </section>
+
+        <!-- Period colour guide -->
+        <section class="card">
+          <h2>Period colour guide</h2>
+          <p class="muted">
+            Colour can change during one period and from month to month. Learning what is
+            normal for you matters more than any chart. This is general information, not a
+            diagnosis.
+          </p>
+
+          <details class="fold">
+            <summary>Show the colour guide</summary>
+
+            <ul class="plain">
+              <li class="row" style="align-items:flex-start;">
+                <span style="display:flex;gap:10px;align-items:flex-start;">
+                  <span style="display:inline-block;flex:none;width:18px;height:18px;border-radius:50%;background:#d32f2f;margin-top:2px;"></span>
+                  <span>
+                    <strong>Bright red</strong><br>
+                    <span class="muted">Fresh flow, often at the start or middle of a period.</span>
+                  </span>
+                </span>
+                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+              </li>
+
+              <li class="row" style="align-items:flex-start;">
+                <span style="display:flex;gap:10px;align-items:flex-start;">
+                  <span style="display:inline-block;flex:none;width:18px;height:18px;border-radius:50%;background:#8e1b1b;margin-top:2px;"></span>
+                  <span>
+                    <strong>Dark red</strong><br>
+                    <span class="muted">Common at the start or end of a period, overnight, or on lighter days, when blood has been in the body a little longer.</span>
+                  </span>
+                </span>
+                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+              </li>
+
+              <li class="row" style="align-items:flex-start;">
+                <span style="display:flex;gap:10px;align-items:flex-start;">
+                  <span style="display:inline-block;flex:none;width:18px;height:18px;border-radius:50%;background:#5d4037;margin-top:2px;"></span>
+                  <span>
+                    <strong>Brown or black</strong><br>
+                    <span class="muted">Older blood that has darkened, common at the start or end of a period. See a doctor if it comes with fever, itching or a strong smell, if it keeps going for many days, or if you could be pregnant.</span>
+                  </span>
+                </span>
+                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+              </li>
+
+              <li class="row" style="align-items:flex-start;">
+                <span style="display:flex;gap:10px;align-items:flex-start;">
+                  <span style="display:inline-block;flex:none;width:18px;height:18px;border-radius:50%;background:#f4a6b7;margin-top:2px;"></span>
+                  <span>
+                    <strong>Pink</strong><br>
+                    <span class="muted">Light flow mixed with clear cervical fluid, often on lighter days or just before a period starts.</span>
+                  </span>
+                </span>
+                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+              </li>
+
+              <li class="row" style="align-items:flex-start;">
+                <span style="display:flex;gap:10px;align-items:flex-start;">
+                  <span style="display:inline-block;flex:none;width:18px;height:18px;border-radius:50%;background:#f28c28;margin-top:2px;"></span>
+                  <span>
+                    <strong>Orange</strong><br>
+                    <span class="muted">Often blood mixed with cervical fluid, which can be normal. It can also point to an infection, so see a doctor if it comes with a bad smell, itching, burning or unusual discharge.</span>
+                  </span>
+                </span>
+                <span class="badge soon">Watch</span>
+              </li>
+
+              <li class="row" style="align-items:flex-start;">
+                <span style="display:flex;gap:10px;align-items:flex-start;">
+                  <span style="display:inline-block;flex:none;width:18px;height:18px;border-radius:50%;background:#9e9e9e;margin-top:2px;"></span>
+                  <span>
+                    <strong>Grey or green</strong><br>
+                    <span class="muted">Not a normal period colour, and it can point to an infection. Please see a doctor soon, especially with a bad smell, itching or pain.</span>
+                  </span>
+                </span>
+                <span class="badge overdue">See a doctor</span>
+              </li>
+            </ul>
+
+            <h3>See a doctor, whatever the colour, if you have:</h3>
+            <ul>
+              <li>Bleeding that soaks a pad or tampon in under 2 hours</li>
+              <li>Clots bigger than about 2.5 cm across</li>
+              <li>A period that lasts much longer than usual, or bleeding between periods or after sex</li>
+              <li>Severe pain, dizziness, feeling faint, shortness of breath or a fever</li>
+              <li>Any bleeding or unusual discharge while pregnant, or if you could be pregnant. Heavy bright red bleeding, or grey tissue-like clots with cramps, needs urgent medical help.</li>
+            </ul>
+
+            <p class="muted">
+              Hormonal birth control and some medicines can also change colour and flow.
+              If something worries you, a doctor is the right person to ask.
+            </p>
+          </details>
         </section>
       {% endif %}
     </div>

@@ -446,6 +446,7 @@ def render_profile_page(
     cycle_error: Optional[str] = None,
     symptom_error: Optional[str] = None,
     context_error: Optional[str] = None,
+    delete_error: Optional[str] = None,
     status_code: int = 200,
 ):
     vaccines = session.exec(
@@ -509,6 +510,7 @@ def render_profile_page(
             "cycle_error": cycle_error,
             "symptom_error": symptom_error,
             "context_error": context_error,
+            "delete_error": delete_error,
         },
         status_code=status_code,
     )
@@ -989,12 +991,25 @@ def edit_profile_form(
 @app.post("/p/{profile_id}/delete", include_in_schema=False)
 def delete_profile_form(
     profile_id: int,
+    request: Request,
+    password: str = Form(""),
     user: Optional[User] = Depends(get_current_user_or_none),
     session: Session = Depends(get_session),
 ):
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
     profile = get_owned_profile(profile_id, user, session)
+
+    if not verify_password(password, user.password_hash):
+        return render_profile_page(
+            request,
+            session,
+            user,
+            profile,
+            delete_error="Wrong password. The profile was not deleted.",
+            status_code=400,
+        )
+
     delete_profile_data(session, profile)
     session.commit()
     return RedirectResponse(url="/", status_code=303)

@@ -349,6 +349,110 @@ def describe_reading(
     }
 
 
+# ---------- BMI range chart (weight page, adults only) ----------
+# Two scales are shown side by side: the standard WHO cut-offs, and the WHO 2004
+# guidance for many Asian populations. These are general screening guides, not
+# a diagnosis, and BMI does not suit everyone (children, pregnancy, athletes,
+# older adults).
+
+BMI_MIN = 15.0
+BMI_MAX = 40.0
+KG_TO_LB = 2.20462262
+BMI_SCALES = [
+    {
+        "title": "Standard (WHO) ranges",
+        "zones": [
+            (BMI_MIN, 18.5, "Below healthy range", "#5b8def"),
+            (18.5, 25.0, "Healthy range", "#2e9e6b"),
+            (25.0, 30.0, "Above healthy range", "#e0a800"),
+            (30.0, BMI_MAX, "Well above healthy range", "#d9622b"),
+        ],
+    },
+    {
+        "title": "Asian populations (WHO 2004 guidance)",
+        "zones": [
+            (BMI_MIN, 18.5, "Below healthy range", "#5b8def"),
+            (18.5, 23.0, "Healthy range", "#2e9e6b"),
+            (23.0, 27.5, "Increased risk", "#e0a800"),
+            (27.5, BMI_MAX, "High risk", "#d9622b"),
+        ],
+    },
+]
+
+
+def build_bmi_chart(height_cm: float, latest: Optional[HealthReading]) -> dict:
+    """Weight ranges for this height, with a marker at the latest weight (if any)."""
+    metres = height_cm / 100
+    unit = latest.unit if latest is not None else "kg"
+    factor = KG_TO_LB if unit == "lb" else 1.0
+    left = 24.0
+    plot_w = 552.0
+
+    def weight_at(bmi: float) -> float:
+        return bmi * metres * metres * factor
+
+    def x_for(bmi: float) -> float:
+        clamped = min(max(bmi, BMI_MIN), BMI_MAX)
+        return round(left + (clamped - BMI_MIN) / (BMI_MAX - BMI_MIN) * plot_w, 1)
+
+    marker = None
+    if latest is not None:
+        bmi = compute_bmi(latest.value1, latest.unit, height_cm)
+        if bmi is not None:
+            x = x_for(bmi)
+            marker = {
+                "x": x,
+                "anchor": "start" if x < 120 else ("end" if x > 480 else "middle"),
+                "label": f"{format_number(latest.value1)} {unit} (BMI {format_number(bmi)})",
+            }
+
+    scales = []
+    for scale in BMI_SCALES:
+        zones = []
+        ticks = []
+        last_index = len(scale["zones"]) - 1
+        for index, (low, high, name, color) in enumerate(scale["zones"]):
+            x1, x2 = x_for(low), x_for(high)
+            if index == 0:
+                bmi_text = f"under {high:g}"
+                weight_text = f"under {format_number(round(weight_at(high)))} {unit}"
+            elif index == last_index:
+                bmi_text = f"{low:g} and above"
+                weight_text = f"{format_number(round(weight_at(low)))} {unit} and above"
+            else:
+                bmi_text = f"{low:g} to under {high:g}"
+                weight_text = (
+                    f"{format_number(round(weight_at(low)))} to "
+                    f"{format_number(round(weight_at(high)))} {unit}"
+                )
+            zones.append(
+                {
+                    "x": x1,
+                    "width": round(x2 - x1, 1),
+                    "color": color,
+                    "name": name,
+                    "bmi_text": bmi_text,
+                    "weight_text": weight_text,
+                }
+            )
+            if index != last_index:
+                ticks.append(
+                    {
+                        "x": x2,
+                        "bmi": f"{high:g}",
+                        "weight": f"{format_number(round(weight_at(high)))} {unit}",
+                    }
+                )
+        scales.append({"title": scale["title"], "zones": zones, "ticks": ticks})
+
+    return {
+        "height": format_number(height_cm),
+        "unit": unit,
+        "marker": marker,
+        "scales": scales,
+    }
+
+
 # ---------- Chart (drawn as an SVG picture on the server, no extra libraries) ----------
 
 CHART_W = 600
@@ -478,6 +582,7 @@ def render_readings_page(
             charts.append(build_chart(unit, in_unit, config))
 
     bmi_info = None
+    bmi_chart = None
     if config.get("bmi"):
         latest_bmi = None
         if rows:
@@ -487,6 +592,9 @@ def render_readings_page(
             "latest_bmi": format_number(latest_bmi) if latest_bmi is not None else None,
             "young": profile.age < 20,
         }
+        # The range chart is only for adults with a height on the profile.
+        if profile.height_cm and profile.age >= 20:
+            bmi_chart = build_bmi_chart(profile.height_cm, rows[0] if rows else None)
 
     if values is None:
         values = {
@@ -520,6 +628,7 @@ def render_readings_page(
             "charts": charts,
             "chart_points": CHART_POINTS,
             "bmi_info": bmi_info,
+            "bmi_chart": bmi_chart,
             "flash": request.session.pop("flash", None),
             "error": error,
         },
