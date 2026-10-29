@@ -1,0 +1,30 @@
+{% macro fields_form(fields, form_values, today) %}
+  {% for f in fields %}
+    {% if f.type == "textarea" %}
+      <label>{{ f.label }}
+        <textarea name="{{ f.name }}" rows="3" maxlength="{{ f.max }}"{% if f.required %} required{% endif %}>{{ form_values[f.name] or '' }}</textarea>
+      </label>
+    {% elif f.type == "select" %}
+      <label>{{ f.label }}
+        <select name="{{ f.name }}"{% if f.required %} required{% endif %}>
+          <option value=""{% if f.required %} disabled{% endif %}{% if not form_values[f.name] %} selected{% endif %}>{% if f.required %}Choose one{% else %}Not specified{% endif %}</option>
+          {% for c in f.choices %}
+            <option value="{{ c }}"{% if c == form_values[f.name] %} selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% elif f.type == "date" %}
+      <label>{{ f.label }}
+        <input type="date" name="{{ f.name }}" value="{{ form_values[f.name] or '' }}"{% if f.no_future %} max="{{ today }}"{% endif %}{% if f.required %} required{% endif %}>
+      </label>
+    {% elif f.type == "age" %}
+      <label>{{ f.label }}
+        <input type="number" name="{{ f.name }}" min="0" max="120" value="{{ form_values[f.name] or '' }}"{% if f.required %} required{% endif %}>
+      </label>
+    {% else %}
+      <label>{{ f.label }}
+        <input type="text" name="{{ f.name }}" maxlength="{{ f.max }}" value="{{ form_values[f.name] or '' }}"{% if f.required %} required{% endif %}>
+      </label>
+    {% endif %}
+  {% endfor %}
+{% endmacro %}

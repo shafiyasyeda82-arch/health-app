@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ spec.singular }} - Health App{% endblock %}
+
+{% block content %}
+  {% from "_medical_macros.html" import fields_form %}
+
+  <p><a href="/p/{{ profile.id }}/medical#{{ entry.kind }}">&larr; Back to medical history</a></p>
+
+  <section class="card">
+    <h2>Edit {{ spec.singular }}</h2>
+    {% if spec.note %}
+      <p class="muted"><strong>{{ spec.note }}</strong></p>
+    {% endif %}
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/medical/entry/{{ entry.id }}/edit" method="post">
+      {{ fields_form(spec.fields, form_values, today) }}
+      <button type="submit">Save changes</button>
+    </form>
+  </section>
+{% endblock %}

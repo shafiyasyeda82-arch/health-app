@@ -13,11 +13,13 @@ from sqlmodel import Session, col, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import create_db_and_tables, get_session
+from app.medical import router as medical_router
 from app.models import (
     ContextNote,
     CycleEntry,
     CycleSetting,
     HealthReading,
+    MedicalHistoryEntry,
     Profile,
     ProfileCreate,
     SymptomLog,
@@ -88,6 +90,7 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(readings_router)
+app.include_router(medical_router)
 templates = Jinja2Templates(directory="templates")
 
 
@@ -249,6 +252,7 @@ def delete_profile_data(session: Session, profile: Profile) -> None:
         ContextNote,
         CycleSetting,
         HealthReading,
+        MedicalHistoryEntry,
     ):
         rows = session.exec(
             select(model).where(model.profile_id == profile.id)

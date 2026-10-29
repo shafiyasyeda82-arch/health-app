@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Medical history - {{ profile.name }} - Health App{% endblock %}
+
+{% block content %}
+  {% from "_medical_macros.html" import fields_form %}
+
+  <p><a href="/p/{{ profile.id }}">&larr; Back to profile page</a></p>
+
+  <section class="card">
+    <h2>Medical history</h2>
+    <p class="muted">
+      Your own record of conditions, medicines, allergies, operations and family
+      history, so it is ready when a doctor asks. It is only a record you keep
+      yourself. It is not a medical file and it never gives medical advice, so please
+      keep it accurate and tell your doctor about anything important.
+    </p>
+    <p class="muted">
+      Jump to:
+      {% for s in sections %}
+        <a href="#{{ s.key }}">{{ s.label }}</a>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </p>
+    {% if flash %}
+      <p class="success">{{ flash }}</p>
+    {% endif %}
+  </section>
+
+  {% for s in sections %}
+    <section class="card" id="{{ s.key }}">
+      <h2>{{ s.label }}{% if s.total %} <span class="muted">({{ s.total }})</span>{% endif %}</h2>
+      <p class="muted">{{ s.intro }}</p>
+      {% if s.note %}
+        <p class="muted"><strong>{{ s.note }}</strong></p>
+      {% endif %}
+
+      <details class="fold" {% if s.has_error %}open{% endif %}>
+        <summary>{{ s.add_label }}</summary>
+        {% if s.error %}
+          <p class="error">{{ s.error }}</p>
+        {% endif %}
+        <form action="/p/{{ profile.id }}/medical/{{ s.key }}/new" method="post">
+          {{ fields_form(s.fields, s.form_values, today) }}
+          <button type="submit">Save</button>
+        </form>
+      </details>
+
+      {% if s.entries %}
+        <ul class="plain">
+          {% for e in s.entries %}
+            <li class="row" style="align-items:flex-start;">
+              <span>
+                <strong>{{ e.title }}</strong>
+                {% if e.badge %}<span class="{{ e.badge_class }}">{{ e.badge }}</span>{% endif %}
+                {% if e.line %}<br><span class="muted">{{ e.line }}</span>{% endif %}
+                {% if e.notes %}<br><span class="muted">{{ e.notes }}</span>{% endif %}
+              </span>
+              <span style="display:flex;gap:10px;align-items:center;">
+                <a href="/p/{{ profile.id }}/medical/entry/{{ e.id }}/edit">Edit</a>
+                <form action="/p/{{ profile.id }}/medical/entry/{{ e.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this entry?');">
+                  <button type="submit" class="danger small">Delete</button>
+                </form>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>{{ s.empty }}</p>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% endblock %}

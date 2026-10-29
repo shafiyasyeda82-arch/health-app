@@ -92,6 +92,26 @@ class HealthReading(SQLModel, table=True):
     notes: Optional[str] = None
 
 
+class MedicalHistoryEntry(SQLModel, table=True):
+    """One record in a person's medical history.
+
+    The same table holds every section (conditions, medications, allergies, surgeries
+    and family history). `kind` says which section an entry belongs to, and what each
+    column means for that kind is described in app/medical.py.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    kind: str = Field(index=True)
+    title: str
+    date_a: Optional[date] = None
+    date_b: Optional[date] = None
+    status: Optional[str] = None
+    detail1: Optional[str] = None
+    detail2: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class VaccineBase(SQLModel):
     vaccine_name: str
     date_taken: date
