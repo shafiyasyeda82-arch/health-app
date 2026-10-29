@@ -12,6 +12,7 @@
     <nav>
       {% if user %}
         <span>{{ user.email }}</span>
+        <a href="/news">News</a>
         <a href="/account">Account</a>
         <form action="/logout" method="post" class="inline-form">
           <button type="submit" class="link-button">Log out</button>

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Health news - Health App{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="/static/readings.css">
+
+  <p><a href="/">&larr; Back to profiles</a></p>
+
+  <section class="card">
+    <h2>Health news</h2>
+    <p class="muted">
+      Headlines about outbreaks, vaccines and health, from WHO and from news outlets.
+      They are shown for information only, may be incomplete or out of date, and are
+      not medical advice. Please open the original article and check official sources
+      before relying on anything.
+    </p>
+
+    <div class="tabs">
+      {% for t in tabs %}
+        <a class="tab-button{% if t.active %} active{% endif %}"
+           href="/news?category={{ t.key }}">{{ t.label }}</a>
+      {% endfor %}
+    </div>
+
+    <p class="muted">{{ note }}</p>
+
+    {% if none_loaded %}
+      <p class="error">
+        These headlines could not be loaded right now.
+        {% if items %}Showing the last saved ones.{% else %}Please try again later, or use the official links below.{% endif %}
+      </p>
+    {% endif %}
+
+    {% if items %}
+      <ul class="plain">
+        {% for i in items %}
+          <li class="row" style="align-items:flex-start;">
+            <span>
+              <a href="{{ i.link }}" target="_blank" rel="noopener noreferrer"><strong>{{ i.title }}</strong></a><br>
+              <span class="muted">
+                {{ i.source }}{% if i.date_text %} &middot; {{ i.date_text }}{% endif %}
+              </span>
+              {% if i.summary %}<br><span class="muted">{{ i.summary }}</span>{% endif %}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif not none_loaded %}
+      <p>No headlines yet. Press "Try again" in a moment.</p>
+    {% endif %}
+
+    <form action="/news/refresh" method="post" style="margin-top:12px;">
+      <input type="hidden" name="category" value="{{ category }}">
+      <button type="submit" class="secondary small">Try again</button>
+      {% if updated_text %}<span class="muted">&nbsp;Last updated {{ updated_text }}</span>{% endif %}
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Official sources</h2>
+    <p class="muted">For the most reliable information, go straight to the source.</p>
+    <ul class="plain">
+      {% for name, url in official_links %}
+        <li class="row">
+          <a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ name }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}
