@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Ask Clara - Health App{% endblock %}
+
+{% block content %}
+  <style>
+    #chat {
+      min-height: 220px;
+      max-height: 420px;
+      overflow-y: auto;
+      padding: 8px 4px;
+      margin-bottom: 12px;
+    }
+    .bubble {
+      white-space: pre-wrap;
+      padding: 10px 14px;
+      border-radius: 12px;
+      margin: 8px 0;
+      max-width: 90%;
+      line-height: 1.4;
+    }
+    .bubble.user { background: #e8f3f2; margin-left: auto; }
+    .bubble.assistant { background: #f2f2f2; }
+    .bubble.error { background: #fdecea; color: #b3261e; }
+    #question {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 1rem;
+    }
+  </style>
+
+  <p><a href="/p/{{ profile.id }}">&larr; Back to profile page</a></p>
+
+  <section class="card">
+    <h2>Ask Clara</h2>
+    <p class="muted">
+      Clara is an AI assistant that explains medical words, readings and health topics in
+      plain language. She is not a doctor. She can make mistakes, she cannot diagnose, and
+      she will never tell you to start, stop or change a medicine. In an emergency, call
+      112 (India) or go to the nearest hospital.
+    </p>
+    <p class="muted">
+      <strong>Privacy:</strong> what you type, and your records if you tick the box below,
+      are sent to Groq, an outside AI company, to get an answer. Nothing you type is saved
+      by this app. Please use made-up details in this demo.
+    </p>
+  </section>
+
+  <section class="card">
+    <form onsubmit="return false;" style="margin-bottom:8px;">
+      <div class="checks">
+        <label>
+          <input type="checkbox" id="use-records">
+          <span>Let Clara use this profile's records for my questions
+            <span class="muted">(age, gender, allergies, conditions, medicines and latest readings; never the name)</span>
+          </span>
+        </label>
+      </div>
+    </form>
+    <details class="fold">
+      <summary>See exactly what Clara would receive</summary>
+      <pre style="white-space:pre-wrap;background:#f8f8f8;padding:10px;border-radius:6px;font-family:inherit;">{{ records_preview }}</pre>
+      <p class="muted">Only sent if the box above is ticked. It is unticked every time you open this page.</p>
+    </details>
+
+    <div id="chat" aria-live="polite">
+      <div class="bubble assistant">Hi, I'm Clara. Ask me about a medical word, a reading, a medicine or a health topic, and I'll explain it simply.</div>
+    </div>
+
+    <div id="examples" style="margin-bottom:10px;">
+      <button type="button" class="secondary small" data-q="What does HbA1c mean?">What does HbA1c mean?</button>
+      <button type="button" class="secondary small" data-q="What is a normal way to take a blood pressure reading at home?">Taking blood pressure at home</button>
+      <button type="button" class="secondary small" data-q="Can you explain my medicines in simple words?">Explain my medicines</button>
+    </div>
+
+    <form id="ask-form">
+      <label for="question">Your question</label>
+      <textarea id="question" rows="3" maxlength="1000" placeholder="Type your question here"></textarea>
+      <button type="submit" id="send" style="margin-top:8px;">Ask Clara</button>
+    </form>
+  </section>
+
+  <script>
+    (function () {
+      var chat = document.getElementById("chat");
+      var form = document.getElementById("ask-form");
+      var input = document.getElementById("question");
+      var consent = document.getElementById("use-records");
+      var sendButton = document.getElementById("send");
+      var url = "/p/{{ profile.id }}/clara/ask";
+      var history = [];
+
+      function addBubble(kind, text) {
+        var bubble = document.createElement("div");
+        bubble.className = "bubble " + kind;
+        bubble.textContent = text;  // plain text only, never HTML
+        chat.appendChild(bubble);
+        chat.scrollTop = chat.scrollHeight;
+        return bubble;
+      }
+
+      async function send(question) {
+        question = (question || "").trim();
+        if (!question) { return; }
+
+        history.push({ role: "user", content: question });
+        addBubble("user", question);
+        var waiting = addBubble("assistant", "Clara is thinking...");
+        sendButton.disabled = true;
+        input.value = "";
+
+        try {
+          var response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: history, use_records: consent.checked })
+          });
+          var data = {};
+          try { data = await response.json(); } catch (e) {}
+
+          if (response.ok && data.answer) {
+            waiting.textContent = data.answer;
+            history.push({ role: "assistant", content: data.answer });
+          } else {
+            waiting.textContent = data.error || "Something went wrong. Please try again.";
+            waiting.className = "bubble error";
+            history.pop();  // so a retry does not repeat the question
+          }
+        } catch (e) {
+          waiting.textContent = "Clara couldn't be reached. Please check your connection and try again.";
+          waiting.className = "bubble error";
+          history.pop();
+        }
+        sendButton.disabled = false;
+        input.focus();
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        send(input.value);
+      });
+
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          send(input.value);
+        }
+      });
+
+      document.querySelectorAll("[data-q]").forEach(function (button) {
+        button.addEventListener("click", function () { send(button.dataset.q); });
+      });
+    })();
+  </script>
+{% endblock %}

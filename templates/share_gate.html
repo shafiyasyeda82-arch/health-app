@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Patient health summary{% endblock %}
+
+{% block nav %}{% endblock %}
+
+{% block content %}
+  {% if mode == "code" %}
+    <section class="card">
+      <h2>Patient health summary</h2>
+      <p>
+        A patient has shared part of their health record with you. Please enter the
+        6-digit access code the patient gave you.
+      </p>
+      {% if error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+      <form action="/share/{{ token }}" method="post">
+        <label>Access code
+          <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="8" required autofocus>
+        </label>
+        <button type="submit">View summary</button>
+      </form>
+      <p class="muted">
+        The link locks after 5 wrong codes. If that happens, please ask the patient for a
+        new link.
+      </p>
+    </section>
+  {% else %}
+    <section class="card">
+      <h2>This link isn't available</h2>
+      <p>
+        It may have expired, been turned off by the patient, been locked after too many
+        wrong codes, or been typed incorrectly. Please ask the patient for a new link.
+      </p>
+    </section>
+  {% endif %}
+{% endblock %}

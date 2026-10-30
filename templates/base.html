@@ -9,6 +9,7 @@
 <body>
   <header>
     <h1>Health App</h1>
+    {% block nav %}
     <nav>
       {% if user %}
         <span>{{ user.email }}</span>
@@ -22,6 +23,7 @@
         <a href="/signup">Sign up</a>
       {% endif %}
     </nav>
+    {% endblock %}
   </header>
 
   <main>

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Patient health summary{% endblock %}
+
+{% block nav %}{% endblock %}
+
+{% block content %}
+  <style>
+    table.summary { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    table.summary th, table.summary td {
+      text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top;
+    }
+    @media print {
+      header, footer, .no-print { display: none !important; }
+      body { background: white; }
+      main { margin: 0; max-width: none; padding: 0; }
+      .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+    }
+  </style>
+
+  <section class="card">
+    <h2>Patient health summary</h2>
+    {% if summary.basics %}
+      <p>
+        <strong style="font-size:1.1rem;">{{ summary.basics.name }}</strong><br>
+        Age {{ summary.basics.age }} &middot; {{ summary.basics.gender }}
+        {% if summary.basics.blood_group %}&middot; Blood group {{ summary.basics.blood_group }}{% endif %}
+        {% if summary.basics.height %}&middot; Height {{ summary.basics.height }} cm{% endif %}
+      </p>
+    {% endif %}
+    <p class="muted">
+      Prepared {{ generated }}. Shared by the patient until {{ expires }}.
+    </p>
+    <p class="muted">
+      This summary was put together by the patient from their own records in a student
+      project. It has not been checked by any doctor or hospital, and it may be incomplete
+      or out of date. Please confirm anything important with the patient.
+    </p>
+    <button type="button" class="secondary small no-print" onclick="window.print()">Print or save as PDF</button>
+  </section>
+
+  {% for block in summary.medical %}
+    <section class="card">
+      <h2>{{ block.label }}</h2>
+      {% if block.profile_note %}
+        <p><strong>Noted on the profile:</strong> {{ block.profile_note }}</p>
+      {% endif %}
+      {% if block.entries %}
+        <ul class="plain">
+          {% for e in block.entries %}
+            <li class="row" style="align-items:flex-start;">
+              <span>
+                <strong>{{ e.title }}</strong>
+                {% if e.badge %}<span class="{{ e.badge_class }}">{{ e.badge }}</span>{% endif %}
+                {% if e.line %}<br><span class="muted">{{ e.line }}</span>{% endif %}
+                {% if e.notes %}<br><span class="muted">{{ e.notes }}</span>{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif not block.profile_note %}
+        <p class="muted">Nothing recorded.</p>
+      {% endif %}
+    </section>
+  {% endfor %}
+
+  {% if summary.readings is not none %}
+    <section class="card">
+      <h2>Health readings</h2>
+      <p class="muted">The latest 5 readings of each kind, as the patient entered them.</p>
+      {% if summary.readings %}
+        {% for group in summary.readings %}
+          <h3>{{ group.label }}</h3>
+          <table class="summary">
+            <tr>
+              <th>Date and time</th>
+              <th>Reading</th>
+              {% if group.has_bmi %}<th>BMI</th>{% endif %}
+              <th>Context</th>
+            </tr>
+            {% for r in group.rows %}
+              <tr>
+                <td>{{ r.when }}</td>
+                <td>{{ r.text }}</td>
+                {% if group.has_bmi %}<td>{{ r.bmi or "" }}</td>{% endif %}
+                <td>{{ r.context or "" }}{% if r.notes %}<br><span class="muted">{{ r.notes }}</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </table>
+        {% endfor %}
+      {% else %}
+        <p class="muted">No readings recorded.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if summary.vaccines is not none %}
+    <section class="card">
+      <h2>Vaccines</h2>
+      {% if summary.vaccines %}
+        <table class="summary">
+          <tr><th>Vaccine</th><th>Taken</th><th>Next due</th><th>Notes</th></tr>
+          {% for v in summary.vaccines %}
+            <tr>
+              <td>{{ v.name }}</td>
+              <td>{{ v.taken }}</td>
+              <td>{{ v.next_due }}</td>
+              <td>{{ v.notes }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% else %}
+        <p class="muted">No vaccine records.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if summary.cycle %}
+    <section class="card">
+      <h2>Cycle tracker summary</h2>
+      <p class="muted">Based only on dates and symptoms the patient logged themselves.</p>
+      {% if summary.cycle.recent %}
+        <p><strong>Recent periods:</strong> {{ summary.cycle.recent|join("; ") }}</p>
+      {% else %}
+        <p class="muted">No periods logged.</p>
+      {% endif %}
+      {% if summary.cycle.average %}
+        <p>
+          <strong>Average cycle length:</strong> about {{ summary.cycle.average }} days
+          (from the last {{ summary.cycle.cycles_used }} logged cycle{{ '' if summary.cycle.cycles_used == 1 else 's' }}).
+        </p>
+      {% endif %}
+      {% if summary.cycle.symptoms %}
+        <p><strong>Symptoms logged in the last 90 days:</strong> {{ summary.cycle.symptoms|join(", ") }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

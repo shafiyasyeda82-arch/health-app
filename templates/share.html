@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Share with a doctor - Health App{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="/static/readings.css">
+
+  <p><a href="/p/{{ profile.id }}">&larr; Back to profile page</a></p>
+
+  <section class="card">
+    <h2>Share with a doctor</h2>
+    <p class="muted">
+      You decide exactly what a doctor can see, and for how long. The app makes a private
+      link and a 6-digit access code. Anyone who has <strong>both</strong> can read the
+      sections you ticked, until the link expires or you turn it off. Send the link and
+      the code in different ways (for example, the link by message and the code by
+      phone). After {{ max_attempts }} wrong codes the link locks itself.
+    </p>
+  </section>
+
+  {% if created %}
+    <section class="card" style="border-left:4px solid #1b7f79;">
+      <h2>Your share link is ready</h2>
+      <p>
+        <strong>Save these now. For your safety they are shown only once</strong> and
+        cannot be looked up later. If you lose them, turn the link off and make a new one.
+      </p>
+      <form onsubmit="return false;">
+        <label>Link
+          <input type="text" id="share-url" readonly value="{{ created.url }}" onclick="this.select()">
+        </label>
+        <button type="button" class="secondary small" data-copy="share-url">Copy link</button>
+      </form>
+      <form onsubmit="return false;" style="margin-top:12px;">
+        <label>Access code
+          <input type="text" id="share-code" readonly value="{{ created.code }}" onclick="this.select()">
+        </label>
+        <button type="button" class="secondary small" data-copy="share-code">Copy code</button>
+      </form>
+      <p class="muted">
+        This link points to this computer, so it works here. To test it the way a doctor
+        would see it, open it in a private or incognito window.
+        <a href="{{ created.url }}" target="_blank" rel="noopener noreferrer">Open the doctor view</a>
+      </p>
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <h2>Create a new link</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="/p/{{ profile.id }}/share/new" method="post">
+      <label>Name for this link (optional, only you see it)
+        <input type="text" name="label" maxlength="80" value="{{ values.label }}"
+               placeholder="For example: Dr. Rao, visit on 5 Nov">
+      </label>
+
+      <p><strong>What can the doctor see?</strong></p>
+      <div class="checks" style="flex-direction:column;align-items:flex-start;">
+        {% for s in sections %}
+          <label>
+            <input type="checkbox" name="sections" value="{{ s.key }}"
+                   {% if s.key in values.sections %}checked{% endif %}>
+            <span><strong>{{ s.label }}</strong><br><span class="muted">{{ s.hint }}</span></span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <label>How long should the link work?
+        <select name="expires">
+          {% for key, text in expiry_choices %}
+            <option value="{{ key }}" {% if key == values.expires %}selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <button type="submit">Create link</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Your links</h2>
+    {% if links %}
+      <ul class="plain">
+        {% for l in links %}
+          <li class="row" style="align-items:flex-start;">
+            <span>
+              <strong>{{ l.label }}</strong>
+              {% if l.active %}
+                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">{{ l.status_text }}</span>
+              {% elif l.status == "expired" %}
+                <span class="badge soon">{{ l.status_text }}</span>
+              {% else %}
+                <span class="badge overdue">{{ l.status_text }}</span>
+              {% endif %}
+              <br>
+              <span class="muted">Shares: {{ l.sections|join(", ") }}</span><br>
+              <span class="muted">
+                Created {{ l.created }} &middot;
+                {% if l.active %}works until {{ l.expires }}{% else %}was valid until {{ l.expires }}{% endif %}
+              </span><br>
+              <span class="muted">
+                Opened {{ l.views }} time{{ '' if l.views == 1 else 's' }}{% if l.last_viewed %}, last on {{ l.last_viewed }}{% endif %}
+                {% if l.active and l.attempts_left < max_attempts %}&middot; {{ l.attempts_left }} wrong-code attempt{{ '' if l.attempts_left == 1 else 's' }} left{% endif %}
+              </span>
+            </span>
+            {% if l.active %}
+              <form action="/p/{{ profile.id }}/share/{{ l.id }}/revoke" method="post"
+                    onsubmit="return confirm('Turn this link off? The doctor will lose access straight away.');">
+                <button type="submit" class="danger small">Turn off</button>
+              </form>
+            {% else %}
+              <form action="/p/{{ profile.id }}/share/{{ l.id }}/delete" method="post"
+                    onsubmit="return confirm('Remove this record from the list?');">
+                <button type="submit" class="secondary small">Remove</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No links yet.</p>
+    {% endif %}
+  </section>
+
+  <script>
+    (function () {
+      document.querySelectorAll("[data-copy]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var field = document.getElementById(button.dataset.copy);
+          field.select();
+          try {
+            navigator.clipboard.writeText(field.value);
+          } catch (e) {
+            document.execCommand("copy");
+          }
+          button.textContent = "Copied";
+        });
+      });
+    })();
+  </script>
+{% endblock %}

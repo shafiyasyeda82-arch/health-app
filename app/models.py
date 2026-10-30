@@ -112,6 +112,28 @@ class MedicalHistoryEntry(SQLModel, table=True):
     notes: Optional[str] = None
 
 
+class ShareLink(SQLModel, table=True):
+    """A private link a patient creates so a doctor can see chosen sections.
+
+    The link token and the access code are never stored, only hashes of them, so they
+    can be shown to the patient once and never recovered. Times are UTC.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    token_hash: str = Field(unique=True, index=True)
+    code_hash: str
+    label: Optional[str] = None
+    sections: str = ""
+    created_at: NaiveDatetime
+    expires_at: NaiveDatetime
+    revoked_at: Optional[NaiveDatetime] = None
+    failed_attempts: int = 0
+    locked: bool = False
+    view_count: int = 0
+    last_viewed_at: Optional[NaiveDatetime] = None
+
+
 class VaccineBase(SQLModel):
     vaccine_name: str
     date_taken: date
