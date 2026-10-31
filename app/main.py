@@ -14,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import create_db_and_tables, get_session
 from app.medical import router as medical_router
+from app.settings import load_appearance, router as settings_router
 from app.clara import router as clara_router
 from app.share import router as share_router
 from app.news import router as news_router
@@ -83,7 +84,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, dependencies=[Depends(load_appearance)])
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
@@ -94,6 +95,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(readings_router)
 app.include_router(medical_router)
+app.include_router(settings_router)
 app.include_router(clara_router)
 app.include_router(share_router)
 app.include_router(news_router)

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Health App{% endblock %}
+
+{% block content %}
+  <style>
+    .option-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+    .choice, .theme-card { position: relative; display: block; margin: 0; font-weight: normal; cursor: pointer; }
+    .choice { flex: 1 1 160px; }
+    .choice input, .theme-card input {
+      position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; padding: 0;
+    }
+    .choice-body, .theme-body {
+      display: block; padding: 12px; border: 2px solid var(--border);
+      border-radius: 10px; background: var(--surface); height: 100%;
+    }
+    .choice input:checked + .choice-body,
+    .theme-card input:checked + .theme-body {
+      border-color: var(--link); box-shadow: 0 0 0 2px var(--link);
+    }
+    .choice input:focus-visible + .choice-body,
+    .theme-card input:focus-visible + .theme-body {
+      outline: 3px solid var(--focus); outline-offset: 3px;
+    }
+    .choice input:checked + .choice-body::after,
+    .theme-card input:checked + .theme-body::after {
+      content: "\2713  Selected"; display: block; margin-top: 8px;
+      font-weight: bold; color: var(--link); font-size: 0.85rem;
+    }
+    .theme-grid {
+      display: grid; gap: 12px; margin: 8px 0 16px;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    }
+    .previews { display: flex; gap: 8px; margin-top: 10px; }
+    .preview {
+      flex: 1; border: 1px solid; border-radius: 8px; padding: 8px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .preview .aa { font-weight: bold; font-size: 1.1rem; }
+    .preview .dots { display: flex; gap: 4px; }
+    .preview .dots i { display: block; width: 16px; height: 16px; border-radius: 50%; }
+    .preview small { font-size: 0.75rem; }
+    .picker-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; }
+    .picker-row label { margin: 0; }
+    .picker-row input[type="color"] { width: 72px; height: 44px; padding: 2px; cursor: pointer; }
+    .inline-check { display: flex; align-items: center; gap: 8px; font-weight: normal; }
+    .inline-check input { display: inline-block; width: auto; margin: 0; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  </style>
+
+  <p><a href="/">&larr; Back to profiles</a></p>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <p class="muted">Change how the app looks. Your choices are saved to your account.</p>
+    <p><a href="/account">Go to your account (password and deleting your account)</a></p>
+  </section>
+
+  <form action="/settings/appearance" method="post">
+    <section class="card" id="appearance">
+      <h2>Appearance</h2>
+
+      {% if flash %}<p class="success">{{ flash }}</p>{% endif %}
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+      <h3>Mode</h3>
+      <div class="option-row">
+        {% for key, label, hint in modes %}
+          <label class="choice">
+            <input type="radio" name="mode" value="{{ key }}" {% if key == current.mode %}checked{% endif %}>
+            <span class="choice-body"><strong>{{ label }}</strong><br><span class="muted">{{ hint }}</span></span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <h3>Themes</h3>
+      <p class="muted">
+        Every theme has a light and a dark look, shown below. Pick one, then press Save.
+      </p>
+      <div class="theme-grid">
+        {% for t in themes %}
+          <label class="theme-card">
+            <input type="radio" name="theme" value="{{ t.key }}" {% if t.key == current.theme %}checked{% endif %}>
+            <span class="theme-body">
+              <strong>{{ t.name }}</strong><br>
+              <span class="muted">{{ t.tagline }}</span>
+              <span class="previews">
+                <span class="preview" style="background:{{ t.light.bg }};color:{{ t.light.text }};border-color:{{ t.light.border }};">
+                  <span class="aa">Aa</span>
+                  <span class="dots">
+                    <i style="background:{{ t.light.primary }};"></i>
+                    <i style="background:{{ t.light.accent }};"></i>
+                    <i style="background:{{ t.light.surface }};border:1px solid {{ t.light.border }};"></i>
+                  </span>
+                  <small>Light</small>
+                </span>
+                <span class="preview" style="background:{{ t.dark.bg }};color:{{ t.dark.text }};border-color:{{ t.dark.border }};">
+                  <span class="aa">Aa</span>
+                  <span class="dots">
+                    <i style="background:{{ t.dark.primary }};"></i>
+                    <i style="background:{{ t.dark.accent }};"></i>
+                    <i style="background:{{ t.dark.surface }};border:1px solid {{ t.dark.border }};"></i>
+                  </span>
+                  <small>Dark</small>
+                </span>
+              </span>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <h3>Custom colours</h3>
+      <label class="inline-check">
+        <input type="checkbox" name="use_custom" value="1" {% if current.use_custom %}checked{% endif %}>
+        Use my own primary and accent colours
+      </label>
+      <div class="picker-row" style="margin-top:12px;">
+        <label>Primary colour (header and buttons)
+          <input type="color" name="primary_color" value="{{ current.primary }}">
+        </label>
+        <label>Accent colour (highlights)
+          <input type="color" name="accent_color" value="{{ current.accent }}">
+        </label>
+      </div>
+      <p class="muted">
+        Text, buttons and links adjust automatically so they stay readable. The green,
+        amber and red used for medical status never change.
+      </p>
+
+      <div class="button-row">
+        <button type="submit" name="action" value="save">Save appearance</button>
+        <button type="submit" name="action" value="reset" class="secondary"
+                formnovalidate>Reset to Eevee Light</button>
+      </div>
+    </section>
+  </form>
+{% endblock %}

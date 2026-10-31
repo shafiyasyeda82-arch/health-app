@@ -19,7 +19,7 @@
   </section>
 
   {% if created %}
-    <section class="card" style="border-left:4px solid #1b7f79;">
+    <section class="card highlight">
       <h2>Your share link is ready</h2>
       <p>
         <strong>Save these now. For your safety they are shown only once</strong> and
@@ -88,7 +88,7 @@
             <span>
               <strong>{{ l.label }}</strong>
               {% if l.active %}
-                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">{{ l.status_text }}</span>
+                <span class="badge ok">{{ l.status_text }}</span>
               {% elif l.status == "expired" %}
                 <span class="badge soon">{{ l.status_text }}</span>
               {% else %}

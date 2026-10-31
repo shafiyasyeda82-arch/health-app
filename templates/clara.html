@@ -6,30 +6,45 @@
   <style>
     #chat {
       min-height: 220px;
-      max-height: 420px;
+      max-height: 480px;
       overflow-y: auto;
       padding: 8px 4px;
       margin-bottom: 12px;
     }
     .bubble {
+      padding: 12px 16px;
+      border-radius: 14px;
+      margin: 10px 0;
+      max-width: 94%;
+      line-height: 1.5;
+      border: 1px solid var(--border);
+    }
+    .bubble.user {
+      background: var(--primary-soft);
+      margin-left: auto;
       white-space: pre-wrap;
-      padding: 10px 14px;
-      border-radius: 12px;
-      margin: 8px 0;
-      max-width: 90%;
-      line-height: 1.4;
     }
-    .bubble.user { background: #e8f3f2; margin-left: auto; }
-    .bubble.assistant { background: #f2f2f2; }
-    .bubble.error { background: #fdecea; color: #b3261e; }
-    #question {
-      display: block;
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px;
-      font-family: inherit;
-      font-size: 1rem;
+    .bubble.assistant { background: var(--surface-alt); }
+    .bubble.error {
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      border-color: var(--danger);
     }
+    .bubble p { margin: 8px 0; }
+    .bubble > p:first-child { font-size: 1.05rem; margin-top: 0; }
+    .bubble ul, .bubble ol { margin: 8px 0; padding-left: 22px; }
+    .bubble li { margin: 6px 0; }
+    .bubble h4 { margin: 14px 0 4px; font-size: 1rem; }
+    .bubble strong { font-weight: 700; }
+    .bubble p.doctor-note {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      border-left: 4px solid var(--warn-text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 0;
+    }
+    #question { min-height: 70px; }
   </style>
 
   <p><a href="/p/{{ profile.id }}">&larr; Back to profile page</a></p>
@@ -62,17 +77,17 @@
     </form>
     <details class="fold">
       <summary>See exactly what Clara would receive</summary>
-      <pre style="white-space:pre-wrap;background:#f8f8f8;padding:10px;border-radius:6px;font-family:inherit;">{{ records_preview }}</pre>
+      <pre style="white-space:pre-wrap;background:var(--surface-alt);color:var(--text);padding:10px;border-radius:6px;font-family:inherit;">{{ records_preview }}</pre>
       <p class="muted">Only sent if the box above is ticked. It is unticked every time you open this page.</p>
     </details>
 
     <div id="chat" aria-live="polite">
-      <div class="bubble assistant">Hi, I'm Clara. Ask me about a medical word, a reading, a medicine or a health topic, and I'll explain it simply.</div>
+      <div class="bubble assistant"><p>Hi, I'm Clara. Ask me about a medical word, a reading, a medicine or a health topic, and I'll explain it simply.</p></div>
     </div>
 
     <div id="examples" style="margin-bottom:10px;">
       <button type="button" class="secondary small" data-q="What does HbA1c mean?">What does HbA1c mean?</button>
-      <button type="button" class="secondary small" data-q="What is a normal way to take a blood pressure reading at home?">Taking blood pressure at home</button>
+      <button type="button" class="secondary small" data-q="How do I take my blood pressure properly at home?">Taking blood pressure at home</button>
       <button type="button" class="secondary small" data-q="Can you explain my medicines in simple words?">Explain my medicines</button>
     </div>
 
@@ -93,10 +108,71 @@
       var url = "/p/{{ profile.id }}/clara/ask";
       var history = [];
 
+      // Adds text to an element, turning **bold** into <strong>. Text only, never HTML.
+      function addInline(parent, text) {
+        text.split(/(\*\*[^*]+\*\*)/g).forEach(function (part) {
+          if (/^\*\*[^*]+\*\*$/.test(part)) {
+            var strong = document.createElement("strong");
+            strong.textContent = part.slice(2, -2);
+            parent.appendChild(strong);
+          } else if (part) {
+            parent.appendChild(document.createTextNode(part));
+          }
+        });
+      }
+
+      // Turns Clara's simple formatting (paragraphs, "- " bullets, "1." lists,
+      // **bold**, # headings) into a clear layout.
+      function renderAnswer(container, text) {
+        container.textContent = "";
+        var list = null, listType = null, paragraph = [];
+
+        function flushParagraph() {
+          if (!paragraph.length) { return; }
+          var p = document.createElement("p");
+          var joined = paragraph.join(" ");
+          addInline(p, joined);
+          if (/^\*\*when to see a doctor/i.test(joined)) { p.className = "doctor-note"; }
+          container.appendChild(p);
+          paragraph = [];
+        }
+
+        text.replace(/\r/g, "").split("\n").forEach(function (raw) {
+          var line = raw.trim();
+          if (!line) { flushParagraph(); list = null; return; }
+
+          var heading = line.match(/^#{1,4}\s+(.*)$/);
+          var bullet = line.match(/^[-*\u2022]\s+(.*)$/);
+          var number = line.match(/^\d+[.)]\s+(.*)$/);
+
+          if (heading) {
+            flushParagraph(); list = null;
+            var h = document.createElement("h4");
+            addInline(h, heading[1]);
+            container.appendChild(h);
+          } else if (bullet || number) {
+            flushParagraph();
+            var type = bullet ? "ul" : "ol";
+            if (!list || listType !== type) {
+              list = document.createElement(type);
+              listType = type;
+              container.appendChild(list);
+            }
+            var li = document.createElement("li");
+            addInline(li, (bullet || number)[1]);
+            list.appendChild(li);
+          } else {
+            list = null;
+            paragraph.push(line);
+          }
+        });
+        flushParagraph();
+      }
+
       function addBubble(kind, text) {
         var bubble = document.createElement("div");
         bubble.className = "bubble " + kind;
-        bubble.textContent = text;  // plain text only, never HTML
+        bubble.textContent = text;
         chat.appendChild(bubble);
         chat.scrollTop = chat.scrollHeight;
         return bubble;
@@ -122,7 +198,7 @@
           try { data = await response.json(); } catch (e) {}
 
           if (response.ok && data.answer) {
-            waiting.textContent = data.answer;
+            renderAnswer(waiting, data.answer);
             history.push({ role: "assistant", content: data.answer });
           } else {
             waiting.textContent = data.error || "Something went wrong. Please try again.";
@@ -134,6 +210,7 @@
           waiting.className = "bubble error";
           history.pop();
         }
+        chat.scrollTop = chat.scrollHeight;
         sendButton.disabled = false;
         input.focus();
       }

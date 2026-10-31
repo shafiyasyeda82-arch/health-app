@@ -1,13 +1,28 @@
+/* Every colour in this file is a variable made by app/themes.py.
+   Please don't type colours here: change them in themes.py so every page stays
+   consistent in every theme. */
+
 body {
   font-family: Arial, sans-serif;
-  background: #f4f7f6;
-  color: #222;
+  background: var(--bg);
+  color: var(--text);
   margin: 0;
+  line-height: 1.45;
+}
+
+a {
+  color: var(--link);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 header {
-  background: #1b7f79;
-  color: white;
+  background: var(--header-bg);
+  color: var(--header-text);
+  border-bottom: 3px solid var(--header-line);
   padding: 16px 24px;
   display: flex;
   justify-content: space-between;
@@ -21,15 +36,24 @@ header h1 {
   font-size: 1.5rem;
 }
 
+header :focus-visible {
+  outline-color: var(--header-text);
+}
+
 nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   font-size: 0.9rem;
 }
 
+nav span {
+  color: var(--header-text);
+}
+
 nav a {
-  color: white;
+  color: var(--header-link);
 }
 
 .inline-form {
@@ -40,11 +64,16 @@ nav a {
 .link-button {
   background: none;
   border: none;
-  color: white;
+  color: var(--header-link);
   text-decoration: underline;
   padding: 0;
   cursor: pointer;
   font-size: 0.9rem;
+}
+
+.link-button:hover {
+  filter: none;
+  text-decoration-thickness: 2px;
 }
 
 main {
@@ -54,16 +83,31 @@ main {
 }
 
 .card {
-  background: white;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px 20px;
   margin-bottom: 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
+}
+
+.card.highlight {
+  border-left: 4px solid var(--link);
 }
 
 .error {
-  background: #fdecea;
-  color: #b3261e;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-left: 4px solid var(--danger);
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.success {
+  background: var(--ok-bg);
+  color: var(--ok-text);
+  border-left: 4px solid var(--ok-text);
   padding: 10px 12px;
   border-radius: 6px;
 }
@@ -74,26 +118,65 @@ form label {
   font-weight: bold;
 }
 
-form input {
+form input,
+form select,
+form textarea {
   display: block;
   width: 100%;
   padding: 8px;
   margin-top: 4px;
   box-sizing: border-box;
+  font-family: inherit;
+  font-size: 1rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="color"] {
+  accent-color: var(--primary);
 }
 
 button {
-  background: #1b7f79;
-  color: white;
-  border: none;
+  background: var(--primary);
+  color: var(--primary-text);
+  border: 1px solid transparent;
   padding: 10px 18px;
   border-radius: 6px;
   cursor: pointer;
 }
 
+button:hover {
+  filter: brightness(0.92);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: var(--primary-soft);
+  color: var(--link);
+  border-color: var(--input-border);
+}
+
+button.danger {
+  background: var(--danger);
+  color: var(--danger-on);
+}
+
+button.small {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
 footer {
   text-align: center;
-  color: #666;
+  color: var(--muted);
   font-size: 0.85rem;
   padding: 16px;
 }
@@ -110,7 +193,7 @@ ul.plain {
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 
 .row:last-child {
@@ -122,11 +205,12 @@ ul.plain {
 }
 
 .muted {
-  color: #666;
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
 .badge {
+  display: inline-block;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 0.8rem;
@@ -134,38 +218,19 @@ ul.plain {
   white-space: nowrap;
 }
 
-.badge.overdue {
-  background: #fdecea;
-  color: #b3261e;
+.badge.ok {
+  background: var(--ok-bg);
+  color: var(--ok-text);
 }
 
 .badge.soon {
-  background: #fff4d6;
-  color: #8a5a00;
+  background: var(--warn-bg);
+  color: var(--warn-text);
 }
 
-button.danger {
-  background: #b3261e;
-}
-
-button.small {
-  padding: 6px 12px;
-  font-size: 0.85rem;
-}
-
-button.secondary {
-  background: #e8f3f2;
-  color: #14625d;
-}
-
-form textarea {
-  display: block;
-  width: 100%;
-  padding: 8px;
-  margin-top: 4px;
-  box-sizing: border-box;
-  font-family: inherit;
-  font-size: 1rem;
+.badge.overdue {
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .checks {
@@ -191,8 +256,9 @@ form textarea {
 
 .tag {
   display: inline-block;
-  background: #e8f3f2;
-  color: #14625d;
+  background: var(--primary-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
   padding: 2px 10px;
   border-radius: 12px;
   font-size: 0.8rem;
@@ -206,12 +272,13 @@ form textarea {
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 16px;
-  border-bottom: 2px solid #e3ecea;
+  border-bottom: 2px solid var(--border);
 }
 
-.tab-button {
+.tab-button,
+.tab-link {
   background: none;
-  color: #14625d;
+  color: var(--link);
   border: none;
   border-bottom: 3px solid transparent;
   border-radius: 0;
@@ -219,14 +286,18 @@ form textarea {
   font-size: 1rem;
   cursor: pointer;
   margin-bottom: -2px;
+  text-decoration: none;
+  display: inline-block;
 }
 
-.tab-button:hover {
-  background: #f0f7f6;
+.tab-button:hover,
+.tab-link:hover {
+  background: var(--primary-soft);
+  filter: none;
 }
 
 .tab-button.active {
-  border-bottom-color: #1b7f79;
+  border-bottom-color: var(--link);
   font-weight: bold;
 }
 
@@ -235,7 +306,7 @@ form textarea {
 .subsection {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 }
 
 .subsection h3 {
@@ -248,7 +319,7 @@ details.fold {
 
 details.fold summary {
   cursor: pointer;
-  color: #14625d;
+  color: var(--link);
   font-weight: bold;
   padding: 6px 0;
 }
@@ -260,12 +331,17 @@ details.fold[open] summary {
 /* ---------- Late period notice ---------- */
 
 details.late-banner {
-  background: #fff9e6;
-  border-left: 4px solid #e0a800;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-left: 4px solid var(--warn-text);
   border-radius: 8px;
   padding: 10px 16px;
   margin-bottom: 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
+}
+
+details.late-banner .muted {
+  color: inherit;
 }
 
 details.late-banner summary {
@@ -273,7 +349,6 @@ details.late-banner summary {
 }
 
 .see-details {
-  color: #14625d;
   text-decoration: underline;
   margin-left: 8px;
   font-size: 0.9rem;

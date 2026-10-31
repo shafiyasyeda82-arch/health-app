@@ -61,15 +61,11 @@
     {% if is_female %}
       <button type="button" class="tab-button" role="tab" data-tab="cycle">Cycle Tracker</button>
     {% endif %}
-    <a href="/p/{{ profile.id }}/readings"
-       style="padding:10px 14px;color:#14625d;text-decoration:none;font-size:1rem;margin-bottom:-2px;border-bottom:3px solid transparent;">Health readings</a>
-    <a href="/p/{{ profile.id }}/medical"
-       style="padding:10px 14px;color:#14625d;text-decoration:none;font-size:1rem;margin-bottom:-2px;border-bottom:3px solid transparent;">Medical history</a>
-    <a href="/p/{{ profile.id }}/clara"
-       style="padding:10px 14px;color:#14625d;text-decoration:none;font-size:1rem;margin-bottom:-2px;border-bottom:3px solid transparent;">Ask Clara</a>
-    <a href="/p/{{ profile.id }}/share"
-       style="padding:10px 14px;color:#14625d;text-decoration:none;font-size:1rem;margin-bottom:-2px;border-bottom:3px solid transparent;">Share with doctor</a>  
-      </div>
+    <a class="tab-link" href="/p/{{ profile.id }}/readings">Health readings</a>
+    <a class="tab-link" href="/p/{{ profile.id }}/medical">Medical history</a>
+    <a class="tab-link" href="/p/{{ profile.id }}/share">Share with doctor</a>
+    <a class="tab-link" href="/p/{{ profile.id }}/clara">Ask Clara</a>
+  </div>
 
   <!-- ================= Overview ================= -->
   <div class="tab-panel" data-tab="overview">
@@ -408,7 +404,7 @@
           </div>
         </section>
 
-        <!-- Period colour guide -->
+        <!-- Period colour guide. The swatches show real colours, so they stay fixed in every theme. -->
         <section class="card">
           <h2>Period colour guide</h2>
           <p class="muted">
@@ -429,7 +425,7 @@
                     <span class="muted">Fresh flow, often at the start or middle of a period.</span>
                   </span>
                 </span>
-                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+                <span class="badge ok">Usually fine</span>
               </li>
 
               <li class="row" style="align-items:flex-start;">
@@ -440,7 +436,7 @@
                     <span class="muted">Common at the start or end of a period, overnight, or on lighter days, when blood has been in the body a little longer.</span>
                   </span>
                 </span>
-                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+                <span class="badge ok">Usually fine</span>
               </li>
 
               <li class="row" style="align-items:flex-start;">
@@ -451,7 +447,7 @@
                     <span class="muted">Older blood that has darkened, common at the start or end of a period. See a doctor if it comes with fever, itching or a strong smell, if it keeps going for many days, or if you could be pregnant.</span>
                   </span>
                 </span>
-                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+                <span class="badge ok">Usually fine</span>
               </li>
 
               <li class="row" style="align-items:flex-start;">
@@ -462,7 +458,7 @@
                     <span class="muted">Light flow mixed with clear cervical fluid, often on lighter days or just before a period starts.</span>
                   </span>
                 </span>
-                <span class="badge" style="background:#e6f4ea;color:#1e6b34;">Usually fine</span>
+                <span class="badge ok">Usually fine</span>
               </li>
 
               <li class="row" style="align-items:flex-start;">

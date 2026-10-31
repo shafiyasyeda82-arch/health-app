@@ -3,17 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% set appearance = request.state.appearance %}
+  {% if appearance %}<meta name="theme-color" content="{{ appearance.header_bg }}">{% endif %}
   <title>{% block title %}Health App{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
+  {% if appearance %}<style id="theme-variables">{{ appearance.css|safe }}</style>{% endif %}
 </head>
 <body>
   <header>
-    <h1>Health App</h1>
+    <h1>{{ appearance.app_name if appearance else "Health App" }}</h1>
     {% block nav %}
     <nav>
       {% if user %}
         <span>{{ user.email }}</span>
         <a href="/news">News</a>
+        <a href="/settings">Settings</a>
         <a href="/account">Account</a>
         <form action="/logout" method="post" class="inline-form">
           <button type="submit" class="link-button">Log out</button>

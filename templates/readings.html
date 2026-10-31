@@ -81,15 +81,14 @@
           <svg class="chart" viewBox="0 0 600 120" role="img"
                aria-label="Weight ranges for a height of {{ bmi_chart.height }} centimetres. {{ scale.title }}.">
             {% if bmi_chart.marker %}
-              <polygon points="{{ bmi_chart.marker.x - 7 }},30 {{ bmi_chart.marker.x + 7 }},30 {{ bmi_chart.marker.x }},43" fill="#222"></polygon>
-              <text x="{{ bmi_chart.marker.x }}" y="22" text-anchor="{{ bmi_chart.marker.anchor }}"
-                    style="font-size:12px;font-weight:bold;fill:#222;font-family:Arial,sans-serif;">{{ bmi_chart.marker.label }}</text>
+              <polygon class="marker" points="{{ bmi_chart.marker.x - 7 }},30 {{ bmi_chart.marker.x + 7 }},30 {{ bmi_chart.marker.x }},43"></polygon>
+              <text class="marker-text" x="{{ bmi_chart.marker.x }}" y="22" text-anchor="{{ bmi_chart.marker.anchor }}">{{ bmi_chart.marker.label }}</text>
             {% endif %}
             {% for z in scale.zones %}
               <rect x="{{ z.x }}" y="46" width="{{ z.width }}" height="24" fill="{{ z.color }}"></rect>
             {% endfor %}
             {% for t in scale.ticks %}
-              <line x1="{{ t.x }}" y1="46" x2="{{ t.x }}" y2="76" stroke="#444" stroke-width="1"></line>
+              <line class="tick" x1="{{ t.x }}" y1="46" x2="{{ t.x }}" y2="76"></line>
               <text class="axis" x="{{ t.x }}" y="92" text-anchor="middle">BMI {{ t.bmi }}</text>
               <text class="axis" x="{{ t.x }}" y="108" text-anchor="middle">{{ t.weight }}</text>
             {% endfor %}
@@ -133,17 +132,19 @@
               <text class="axis" x="{{ t.x }}" y="{{ chart.height - 12 }}" text-anchor="middle">{{ t.label }}</text>
             {% endfor %}
             {% for s in chart.series %}
-              <polyline fill="none" stroke="{{ s.color }}" stroke-width="2" points="{{ s.points }}"></polyline>
+              {% set si = loop.index0 %}
+              <polyline class="line s{{ si }}" points="{{ s.points }}"></polyline>
               {% for d in s.dots %}
-                <circle cx="{{ d.x }}" cy="{{ d.y }}" r="4.5"
-                        fill="{{ 'white' if d.converted else s.color }}"
-                        stroke="{{ s.color }}" stroke-width="2"><title>{{ d.title }}</title></circle>
+                <circle class="dot d{{ si }}{% if d.converted %} hollow{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="4.5"><title>{{ d.title }}</title></circle>
               {% endfor %}
             {% endfor %}
           </svg>
           <p class="legend">
             {% for s in chart.series %}
-              <span class="legend-item"><span class="swatch"><svg viewBox="0 0 1 1" aria-hidden="true"><rect width="1" height="1" fill="{{ s.color }}"></rect></svg></span>{{ s.name }}</span>
+              <span class="legend-item">
+                <svg width="30" height="10" aria-hidden="true"><line class="line s{{ loop.index0 }}" x1="0" y1="5" x2="30" y2="5"></line></svg>
+                {{ s.name }}{% if loop.index0 == 1 %} (dashed line){% endif %}
+              </span>
             {% endfor %}
           </p>
           {% if chart.note %}
